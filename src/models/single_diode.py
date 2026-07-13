@@ -76,7 +76,7 @@ class DiodeParams:
     n: float
     r_s: float
     r_sh: float
-    temp_k: float = 298.15  # 25 degC default
+    temp_k: float = 298.15  # 25C default
 
 def thermal_voltage(temp_k: float) -> float:
     """Thermal voltage Vt = kT/q, in volts."""
