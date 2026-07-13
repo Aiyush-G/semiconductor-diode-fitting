@@ -13,6 +13,10 @@ Lambert W solved following: Amit Jain, Avinashi Kapoor,
 Exact analytical solutions of the parameters of real solar cells using Lambert W-function,
 Solar Energy Materials and Solar Cells. 
 
+See explanations/models for written explanation of this model. 
+
+https://www.pvsyst.com/help/physical-models-used/pv-module-standard-one-diode-model/index.html has the experimental setup that is followed.
+
 Example Usage: 
 1. Create a DiodeParams object with required circuit parameters: 
 ```py
