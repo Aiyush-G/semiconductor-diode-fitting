@@ -78,6 +78,4 @@ Package the above into a deployable web app.
 | PVsyst temperature coefficients | https://www.pvsyst.com/help/component-database/photovoltaics-modules/pv-modules-main-interface/pv-modules-additional-data/temperature-coefficients.html |
 | PVsyst one-diode model | https://www.pvsyst.com/help/physical-models-used/pv-module-standard-one-diode-model/index.html?h=diode#as-function-of-the-irradiance |
 
-See [`docs/references.md`](./docs/references.md) for the full list, including semiconductor tutorial materials and the Alermatt lecture series.
-
 ---
