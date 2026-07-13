@@ -1,5 +1,8 @@
 # Implementation Plan — Diode Fitting 
 
+## Architecture Decisions
+Streamlit initially > may run into optimisation issues down the line but possibly solvable by caching. 
+
 --- 
 
 ## Phase A - Single diode model
