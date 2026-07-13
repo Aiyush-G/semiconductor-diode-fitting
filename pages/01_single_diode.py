@@ -8,17 +8,18 @@ from ui.plotting import iv_curve_figure
 
 
 REFERENCE_TEMP_K = 298.15
-SATURATION_CURRENT_OPTIONS = [10 ** p for p in range(-14, -5)]
+# Saturation current density J_0 options in A/cm^2 (PV Lighthouse convention).
+SATURATION_CURRENT_OPTIONS = [10 ** p for p in range(-15, -5)]
 
 
 # Page metadata and opening copy are kept concise so keyboard and screen-reader
 # users reach the controls quickly.
-st.set_page_config(page_title="Single Diode", page_icon="☀️", layout="wide")
-st.title("Single Diode Model - Phase A")
+st.set_page_config(page_title="Single Diode", layout="wide")
+st.title("Single Diode Model")
 
 st.markdown(
-    "Explore how equivalent-circuit parameters change a solar-cell IV curve "
-    "under light and optional dark conditions."
+    "Explore how equivalent-circuit parameters change a solar-cell JV "
+    "(current-density) curve under light and optional dark conditions."
 )
 
 # Keep inputs and outputs in separate columns so the interaction flow is
@@ -27,34 +28,38 @@ col_controls, col_results = st.columns([1, 2], gap="large")
 
 with col_controls:
     st.header("Reference parameters")
-    st.caption("Circuit values at the 25 deg C reference condition.")
+    st.caption(
+        "Area-normalised circuit values at the 25 deg C reference condition "
+        "(PV Lighthouse convention)."
+    )
 
-    i_ph = st.slider(
-        "Photo-current I_ph (A)",
+    j_ph_ma = st.slider(
+        "Photo-current density J_ph (mA/cm²)",
         0.0,
-        10.0,
-        8.0,
-        step=0.1,
+        50.0,
+        40.0,
+        step=0.5,
         help=(
-            "Light-generated current in amps. Higher values raise the "
-            "short-circuit current of the light IV curve."
+            "Light-generated current density in mA/cm². Higher values raise "
+            "the short-circuit current density of the light JV curve."
         ),
     )
-    i_0 = st.select_slider(
-        "Saturation current I_0 (A)",
+    j_0 = st.select_slider(
+        "Saturation current density J_0 (A/cm²)",
         options=SATURATION_CURRENT_OPTIONS,
-        value=1e-10,
+        value=1e-13,
         format_func=lambda x: f"{x:.0e}",
         help=(
-            "Reverse saturation current in amps. This controls the diode "
-            "recombination current and strongly affects open-circuit voltage."
+            "Reverse saturation current density in A/cm². This controls the "
+            "diode recombination current and strongly affects open-circuit "
+            "voltage."
         ),
     )
     n = st.slider(
         "Ideality factor n",
         1.0,
-        2.5,
-        1.2,
+        2.0,
+        1.0,
         step=0.05,
         help=(
             "Dimensionless diode ideality factor. Values near 1 represent a "
@@ -62,25 +67,25 @@ with col_controls:
         ),
     )
     r_s = st.slider(
-        "Series resistance R_s (Ohm)",
+        "Series resistance R_s (Ω·cm²)",
         0.0,
-        2.0,
-        0.05,
-        step=0.01,
+        5.0,
+        0.5,
+        step=0.05,
         help=(
-            "Internal series resistance in ohms from contacts, bulk material, "
-            "and wiring. Larger values reduce current at high voltage."
+            "Area-normalised series resistance in Ω·cm² from contacts, bulk "
+            "material, and wiring. Larger values reduce current at high voltage."
         ),
     )
     r_sh = st.slider(
-        "Shunt resistance R_sh (Ohm)",
-        10.0,
-        5000.0,
-        500.0,
-        step=10.0,
+        "Shunt resistance R_sh (Ω·cm²)",
+        100.0,
+        100000.0,
+        1000.0,
+        step=100.0,
         help=(
-            "Leakage-path resistance in ohms. Higher values generally mean "
-            "less leakage near short circuit."
+            "Area-normalised leakage-path resistance in Ω·cm². Higher values "
+            "generally mean less leakage near short circuit."
         ),
     )
 
@@ -106,9 +111,10 @@ with col_controls:
 
 # Convert the visible controls into model parameters before applying the
 # temperature adjustment. The reference values remain anchored to 25 deg C.
+# J_ph is entered in mA/cm² but the model works internally in A/cm².
 ref_params = DiodeParams(
-    i_ph=i_ph,
-    i_0=i_0,
+    j_ph=j_ph_ma * 1e-3,
+    j_0=j_0,
     n=n,
     r_s=r_s,
     r_sh=r_sh,
@@ -133,23 +139,24 @@ metrics = key_metrics(voltage, current)
 with col_results:
     st.header("Results")
 
-    metric_isc, metric_voc, metric_pmax, metric_ff = st.columns(4)
-    metric_isc.metric("Isc (A)", f"{metrics['isc']:.3f}")
+    metric_jsc, metric_voc, metric_pmax, metric_ff, metric_eff = st.columns(5)
+    metric_jsc.metric("Jsc (mA/cm²)", f"{metrics['jsc'] * 1e3:.2f}")
     metric_voc.metric("Voc (V)", f"{metrics['voc']:.3f}")
-    metric_pmax.metric("Pmax (W)", f"{metrics['pmax']:.3f}")
+    metric_pmax.metric("Pmax (mW/cm²)", f"{metrics['pmax'] * 1e3:.2f}")
     metric_ff.metric("Fill factor", f"{metrics['fill_factor']:.3f}")
+    metric_eff.metric("Efficiency (%)", f"{metrics['efficiency'] * 1e2:.2f}")
 
-    fig = iv_curve_figure(voltage, current, metrics=metrics, title="Light IV Curve")
+    fig = iv_curve_figure(voltage, current, metrics=metrics, title="Light JV Curve")
     st.plotly_chart(fig, width="stretch")
     st.caption(
-        "Light IV curve with the maximum-power point marked and generated "
-        "power shown on the secondary axis."
+        "Light JV curve with the maximum-power point marked and generated "
+        "power density shown on the secondary axis."
     )
 
     if show_dark:
         v_dark, i_dark = iv_curve(params, dark=True)
-        fig_dark = iv_curve_figure(v_dark, i_dark, title="Dark IV Curve")
+        fig_dark = iv_curve_figure(v_dark, i_dark, title="Dark JV Curve")
         st.plotly_chart(fig_dark, width="stretch")
         st.caption(
-            "Dark IV curve calculated with the photo-current set to zero."
+            "Dark JV curve calculated with the photo-current set to zero."
         )
