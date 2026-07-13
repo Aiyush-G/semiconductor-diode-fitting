@@ -2,7 +2,7 @@
 
 --- 
 
-## Phase A — Single diode model
+## Phase A - Single diode model
 
 **Goal:** a validated single-diode IV/JV model.
 
@@ -18,7 +18,7 @@
 
 ---
 
-## Phase B — Fitting functionality
+## Phase B - Fitting functionality
 
 **Goal:** fit the single-diode model to real data such that fitted parameters remain physically meaningful.
 
@@ -33,7 +33,7 @@
 
 ---
 
-## Phase C — Tandem extension
+## Phase C - Tandem extension
 
 **Goal:** extend everything above to tandem cells (two single-diode circuits in series, 10 parameters).
 
@@ -46,7 +46,7 @@
 
 ---
 
-## Phase D — Circuit solving (SPICE)
+## Phase D - Circuit solving (SPICE)
 
 **Goal:** move from direct equation-solving to a proper nonlinear circuit solver, benchmarked against TandEx.
 
@@ -59,7 +59,7 @@
 
 ---
 
-## Phase E — Paper reproduction
+## Phase E - Paper reproduction
 
 **Goal:** reproduce key results from the reference Joule paper to validate the approach and surface ideas for the unphysicality problem.
 
@@ -71,7 +71,7 @@
 
 ---
 
-## Phase F — Deployment
+## Phase F - Deployment
 
 **Goal:** package the modelling/fitting code into a deployable web app.
 
