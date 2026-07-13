@@ -11,12 +11,12 @@ Use pvlib under the hood (https://pvlib-python.readthedocs.io/en/stable/index.ht
 **Goal:** a validated single-diode IV/JV model.
 
 **Tasks:**
-- [-] Implement single diode equivalent circuit equations
-- [-] Implement light-generated current (linear region)
-- [-] Implement diode curve region + series/shunt resistance effects
-- [-] Implement JV curve generation for both light and dark conditions
-- [-] Implement industry-standard temperature dependence using Faiman/PVsyst as reference
-- [-] Cross-check output against PV Lighthouse's equivalent circuit calculator
+- [x] Implement single diode equivalent circuit equations
+- [x] Implement light-generated current (linear region)
+- [x] Implement diode curve region + series/shunt resistance effects
+- [x] Implement JV curve generation for both light and dark conditions
+- [x] Implement industry-standard temperature dependence using Faiman/PVsyst as reference
+- [x] Cross-check output against PV Lighthouse's equivalent circuit calculator
 - [] Add log JV and mV curves
 - [] Explore how written documentation can be added to the frontend
 
