@@ -3,6 +3,7 @@
 ## Architecture Decisions
 Streamlit initially > may run into optimisation issues down the line but possibly solvable by caching. 
 
+Use pvlib under the hood (https://pvlib-python.readthedocs.io/en/stable/index.html)
 --- 
 
 ## Phase A - Single diode model

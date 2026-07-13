@@ -2,6 +2,16 @@
 
 A Python/JS web application for plotting, fitting, and analysing IV (current-voltage) curves of solar cells -  from single-diode models through to tandem cell configurations -  as part of the **TacOSPV** project at Interface Materials, Oxford.
 
+## Local setup
+
+This project uses a local Python virtual environment named `.venv`.
+
+1. Create it: `python3 -m venv .venv`
+2. Activate it: `source .venv/bin/activate`
+3. Install dependencies: `python -m pip install -r requirements.txt`
+
+If you open a new terminal, reactivate the environment before running the app or tests.
+
 
 ---
 
