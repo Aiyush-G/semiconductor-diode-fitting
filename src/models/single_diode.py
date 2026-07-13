@@ -12,6 +12,35 @@ convergence edge cases when scanning a full voltage sweep.
 Lambert W solved following: Amit Jain, Avinashi Kapoor,
 Exact analytical solutions of the parameters of real solar cells using Lambert W-function,
 Solar Energy Materials and Solar Cells. 
+
+Example Usage: 
+1. Create a DiodeParams object with required circuit parameters: 
+```py
+from src.models.single_diode import DiodeParams, iv_curve, key_metrics
+
+params = DiodeParams(
+    i_ph=5.0,      # Photo current in Amps
+    i_0=1e-12,     # Saturation current in Amps
+    n=1.3,         # Ideality factor
+    r_s=0.5,       # Series resistance in Ohms
+    r_sh=1000,     # Shunt resistance in Ohms
+    temp_k=298.15  # Temperature in Kelvin (25°C default)
+)
+```
+
+2. Then, generate IV (current-voltage curve)
+```py
+voltage, current = iv_curve(params, v_max=1.2, n_points=200)
+```
+
+3. Extract performance metrics
+```py
+metrics = key_metrics(voltage, current)
+print(f"Short-circuit current (Isc): {metrics['isc']:.3f} A")
+print(f"Open-circuit voltage (Voc): {metrics['voc']:.3f} V")
+print(f"Max power point: {metrics['pmax']:.3f} W")
+print(f"Fill factor: {metrics['fill_factor']:.1%}")
+```
 """
 
 from dataclasses import dataclass # for more easy storage of parameters
