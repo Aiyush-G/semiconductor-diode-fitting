@@ -9,6 +9,7 @@ This project uses a local Python virtual environment named `.venv`.
 1. Create it: `python3 -m venv .venv`
 2. Activate it: `source .venv/bin/activate`
 3. Install dependencies: `python -m pip install -r requirements.txt`
+4. Run Streamlit: streamlit run app.py
 
 If you open a new terminal, reactivate the environment before running the app or tests.
 
