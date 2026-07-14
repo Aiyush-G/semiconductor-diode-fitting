@@ -26,7 +26,7 @@ If you open a new terminal, reactivate the environment before running the app or
 
 ## Milestones / Phases
 
-### Phase A -  Single diode model
+### Phase A -  Single diode model (COMPLETED)
 Build and validate the base physics: plot IV/JV curves (light and dark) for a single diode equivalent circuit, using an industry-standard temperature dependence model as a placeholder.
 - IV curve plotting engine
 - JV curve, light and dark conditions
