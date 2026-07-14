@@ -26,8 +26,10 @@ def slider_with_number(
     """Render a slider and a number_input side-by-side that stay in sync.
 
     The number box is unbounded above ``max_value``: typing a larger value is
-    allowed and the slider's upper bound expands to accommodate it, snapping back
-    once the value drops within the base range. ``min_value`` remains a hard floor.
+    allowed and the slider's upper bound expands to accommodate it. The expanded
+    bound is sticky for the session (it grows but never shrinks) because
+    shrinking a slider's ``max_value`` makes Streamlit reset the slider to its
+    minimum. ``min_value`` remains a hard floor.
 
     Args:
         label: control label (shown on the slider; the number box mirrors it).
@@ -44,12 +46,14 @@ def slider_with_number(
     """
     sld_key = f"{key}_sld"
     num_key = f"{key}_num"
+    emax_key = f"{key}_emax"
 
-    # Seed both keys once so neither widget needs a ``value=`` argument (passing
+    # Seed the keys once so neither widget needs a ``value=`` argument (passing
     # both ``value`` and an existing key triggers a Streamlit warning).
     if sld_key not in st.session_state:
         st.session_state[sld_key] = value
         st.session_state[num_key] = value
+        st.session_state[emax_key] = max_value
 
     def _sync_from_slider() -> None:
         st.session_state[num_key] = st.session_state[sld_key]
