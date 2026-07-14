@@ -61,19 +61,19 @@ def slider_with_number(
     def _sync_from_number() -> None:
         st.session_state[sld_key] = st.session_state[num_key]
 
-    # The number box is unbounded above so a user can type past the base range;
-    # the slider's bounds then expand to include the current value so the two
-    # widgets stay consistent (the slider handle would otherwise sit pinned at
-    # its old maximum while the box shows a larger number).
+    # The number box is unbounded above so a user can type past the base range.
+    # The slider's max grows to include the current value but is *sticky* — it
+    # never shrinks, because shrinking a slider's max_value makes Streamlit reset
+    # the slider to its minimum (which caused a snap-to-zero while dragging down).
     current = st.session_state[num_key]
-    slider_min = min(min_value, current)
-    slider_max = max(max_value, current)
+    slider_max = max(st.session_state[emax_key], current)
+    st.session_state[emax_key] = slider_max
 
     col_slider, col_number = st.columns([3, 1], gap="small")
     with col_slider:
         st.slider(
             label,
-            min_value=slider_min,
+            min_value=min_value,
             max_value=slider_max,
             step=step,
             key=sld_key,
