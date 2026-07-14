@@ -348,9 +348,19 @@ def fit_diode(
 
     params = unpack(result.x, specs, temp_k)
     # Recompute the model current cleanly (residual closure may have penalised).
-    model_current = solve_current(voltage, params)
+    # Guard against a pathological final point so a fit never crashes the caller.
+    success = bool(result.success)
+    message = str(result.message)
+    try:
+        model_current = solve_current(voltage, params)
+        if not np.all(np.isfinite(model_current)):
+            raise ValueError("non-finite model current")
+    except Exception as exc:  # noqa: BLE001 - report, don't crash
+        model_current = np.full_like(voltage, np.nan)
+        success = False
+        message = f"{message} (final model evaluation failed: {exc})"
     return _build_result(
-        params, free_names, bool(result.success), str(result.message),
+        params, free_names, success, message,
         voltage, current, model_current, space, cost=float(result.cost),
     )
 
