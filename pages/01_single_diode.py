@@ -88,6 +88,50 @@ def saturation_current_input() -> float:
     return st.session_state["j_0_num"]
 
 
+# Display config for the per-parameter fit controls: (label, number format, step).
+FIT_PARAM_UI = {
+    "j_ph": ("J_ph (A/cm²)", "%.4f", 1e-3),
+    "j_0": ("J_0 (A/cm²)", "%.2e", 1e-13),
+    "n": ("n", "%.3f", 0.05),
+    "r_s": ("R_s (Ω·cm²)", "%.3f", 0.05),
+    "r_sh": ("R_sh (Ω·cm²)", "%.0f", 100.0),
+}
+
+
+def fit_parameter_controls(kind: str) -> tuple[set[str], dict[str, float]]:
+    """Render per-parameter free/fixed controls for a fit and read their state.
+
+    For each parameter relevant to ``kind`` (dark hides the photocurrent J_ph),
+    show a "Fit" checkbox plus a value box that serves as the initial guess when
+    free or the held-constant value when fixed.
+
+    Returns:
+        (free, initial) where ``free`` is the set of parameter names to fit and
+        ``initial`` maps every shown parameter to its box value.
+    """
+    names = PARAM_NAMES if kind == "light" else tuple(n for n in PARAM_NAMES if n != "j_ph")
+    free: set[str] = set()
+    initial: dict[str, float] = {}
+    st.caption("Tick a parameter to fit it; unticked parameters stay fixed at the value shown.")
+    for name in names:
+        label, fmt, step = FIT_PARAM_UI[name]
+        col_free, col_val = st.columns([1, 2], gap="small")
+        with col_free:
+            is_free = st.checkbox("Fit", value=True, key=f"fit_free_{name}")
+        with col_val:
+            value = st.number_input(
+                label,
+                value=float(DEFAULT_INITIAL[name]),
+                step=step,
+                format=fmt,
+                key=f"fit_init_{name}",
+            )
+        initial[name] = float(value)
+        if is_free:
+            free.add(name)
+    return free, initial
+
+
 # Page metadata and opening copy are kept concise so keyboard and screen-reader
 # users reach the controls quickly.
 st.set_page_config(page_title="Single Diode", layout="wide")
@@ -232,6 +276,111 @@ with col_controls:
         ),
     )
 
+    # --- Import & fit measured data ----------------------------------------
+    # The fit temperature is taken from the cell-temperature control above (a
+    # known, fixed input) rather than being fitted.
+    fit_temp_k = temp_c + 273.15
+    with st.expander("Import & fit measured data"):
+        st.caption(
+            "Overlay measured J-V data on the graph and fit the single-diode "
+            "model to it. Light data fits J_L, J_0, n, R_s, R_sh; dark data fits "
+            "J_0, n, R_s, R_sh (no photocurrent)."
+        )
+
+        example_choice = st.selectbox(
+            "Example dataset",
+            ["None", *EXAMPLE_DATASETS.keys()],
+            key="fit_example_choice",
+        )
+        if st.button(
+            "Load example",
+            key="fit_load_example",
+            disabled=example_choice == "None",
+        ):
+            st.session_state["imported_dataset"] = EXAMPLE_DATASETS[example_choice]
+            st.session_state.pop("fit_result", None)
+
+        st.markdown("**Or import your own data**")
+        dataset_name = st.text_input("Dataset name", value="My dataset", key="fit_name")
+        kind_label = st.radio(
+            "Data type", ["Light JV", "Dark JV"], key="fit_kind", horizontal=True
+        )
+        v_unit_label = st.radio(
+            "Voltage units", ["V", "mV"], key="fit_v_units", horizontal=True
+        )
+        i_unit_label = st.radio(
+            "Current units", ["A/cm²", "mA/cm²"], key="fit_i_units", horizontal=True
+        )
+        pasted = st.text_area(
+            "Paste two columns (voltage, current)",
+            key="fit_paste",
+            height=130,
+            placeholder="0.0, 0.036\n0.1, 0.0358\n...",
+        )
+        uploaded = st.file_uploader(
+            "...or upload a file",
+            type=["csv", "txt", "tsv", "dat"],
+            key="fit_upload",
+        )
+        if st.button("Import dataset", key="fit_import"):
+            if uploaded is not None:
+                text = uploaded.getvalue().decode("utf-8", errors="replace")
+            else:
+                text = pasted
+            try:
+                dataset = build_dataset(
+                    text,
+                    label=dataset_name or "My dataset",
+                    kind="light" if kind_label == "Light JV" else "dark",
+                    voltage_units="V" if v_unit_label == "V" else "mV",
+                    current_units="A/cm2" if i_unit_label == "A/cm²" else "mA/cm2",
+                    temp_k=fit_temp_k,
+                )
+                st.session_state["imported_dataset"] = dataset
+                st.session_state.pop("fit_result", None)
+                st.success(
+                    f"Imported {dataset.voltage.size} points as "
+                    f"'{dataset.label}' ({dataset.kind})."
+                )
+            except DataImportError as exc:
+                st.error(str(exc))
+
+        dataset = st.session_state.get("imported_dataset")
+        if dataset is not None:
+            st.markdown(
+                f"**Loaded:** {dataset.label} — {dataset.kind}, "
+                f"{dataset.voltage.size} points"
+            )
+            fit_free, fit_initial = fit_parameter_controls(dataset.kind)
+            residual_space = st.radio(
+                "Residual space",
+                ["auto", "linear", "log"],
+                key="fit_residual_space",
+                horizontal=True,
+                help=(
+                    "How points are weighted: 'log' suits dark data spanning many "
+                    "decades; 'linear' suits light data. 'auto' chooses per data type."
+                ),
+            )
+            if st.button("Fit dataset", key="fit_run", type="primary"):
+                if not fit_free:
+                    st.warning("Select at least one parameter to fit.")
+                else:
+                    specs = default_specs(
+                        dataset.kind, free=fit_free, initial=fit_initial
+                    )
+                    st.session_state["fit_result"] = fit_diode(
+                        dataset.voltage,
+                        dataset.current,
+                        fit_temp_k,
+                        specs,
+                        kind=dataset.kind,
+                        residual_space=residual_space,
+                    )
+            if st.button("Clear dataset", key="fit_clear"):
+                st.session_state.pop("imported_dataset", None)
+                st.session_state.pop("fit_result", None)
+
 # Convert the visible controls into model parameters before applying the
 # temperature adjustment. The reference values remain anchored to 25 deg C.
 # J_ph is entered in mA/cm² but the model works internally in A/cm².
@@ -274,9 +423,22 @@ with col_results:
     dark_curve = iv_curve(params, dark=True) if show_dark else None
     v_dark, i_dark = dark_curve if dark_curve is not None else (None, None)
 
+    # Overlay imported measurements and, once fitted, the fitted curve onto the
+    # existing JV graph. Both are pulled from session_state so reruns preserve them.
+    imported_dataset = st.session_state.get("imported_dataset")
+    fit_result = st.session_state.get("fit_result")
+    measured_voltage = imported_dataset.voltage if imported_dataset is not None else None
+    measured_current = imported_dataset.current if imported_dataset is not None else None
+    measured_label = imported_dataset.label if imported_dataset is not None else "Measured data"
+    fitted_voltage = imported_dataset.voltage if fit_result is not None else None
+    fitted_current = fit_result.model_current if fit_result is not None else None
+
     fig = iv_curve_figure(
         voltage, current, metrics=metrics, title="JV Curve",
         dark_voltage=v_dark, dark_current=i_dark,
+        measured_voltage=measured_voltage, measured_current=measured_current,
+        measured_label=measured_label,
+        fitted_voltage=fitted_voltage, fitted_current=fitted_current,
     )
     st.plotly_chart(fig, width="stretch")
     if dark_curve is not None:
@@ -321,3 +483,44 @@ with col_results:
         "ideality factor n in the exponential region and departs where series/"
         "shunt resistance dominate; gaps appear near the J→0 crossing (Voc)."
     )
+
+    # --- Fit summary and residuals -----------------------------------------
+    if fit_result is not None:
+        st.subheader("Fit results")
+
+        status = "converged" if fit_result.success else "did not converge"
+        st.caption(
+            f"Fitted {', '.join(fit_result.free_names)} to '{measured_label}' "
+            f"({fit_result.n_points} points, {fit_result.residual_space} residuals) — {status}."
+        )
+
+        p = fit_result.params
+        pcol1, pcol2, pcol3, pcol4, pcol5 = st.columns(5)
+        pcol1.metric("J_L (mA/cm²)", f"{p.j_ph * 1e3:.3f}")
+        pcol2.metric("J_0 (A/cm²)", f"{p.j_0:.3e}")
+        pcol3.metric("n", f"{p.n:.3f}")
+        pcol4.metric("R_s (Ω·cm²)", f"{p.r_s:.3f}")
+        pcol5.metric("R_sh (Ω·cm²)", f"{p.r_sh:.4g}")
+
+        mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+        mcol1.metric("RMSE (mA/cm²)", f"{fit_result.rmse * 1e3:.4f}")
+        mcol2.metric("R²", f"{fit_result.r_squared:.5f}")
+        mcol3.metric("Max |resid| (mA/cm²)", f"{fit_result.max_abs_residual * 1e3:.4f}")
+        if fit_result.rmse_log is not None:
+            mcol4.metric("RMSE (log₁₀|J|)", f"{fit_result.rmse_log:.4f}")
+
+        st.caption(f"Optimizer message: {fit_result.message}")
+
+        st.plotly_chart(
+            residual_figure(
+                imported_dataset.voltage,
+                fit_result.residual,
+                residual_space=fit_result.residual_space,
+            ),
+            width="stretch",
+        )
+        st.caption(
+            "Residual = fitted − measured current density at each point. A "
+            "structureless scatter about zero indicates a good fit; systematic "
+            "curvature points to a model/parameter mismatch."
+        )
