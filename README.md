@@ -40,6 +40,12 @@ Add the ability to fit the single-diode model to real/custom data.
 - Parameter bounding + high-cost penalties for unphysical values
 - **Milestone:** fit a real dataset and get parameters that are both numerically good and physically sane; compare against Dong's fitting algorithm once available
 
+#### Review 1 - Documentation of Phase A and Phase B / Testing
+- Phase A and B code review
+- Phase A and B UI documentation (/ensure clean UX principles are being followed)
+- Write unit tests for logic implemneted in phases A, B. 
+
+
 ### Phase C - Tandem extension
 Extend the model and fitting pipeline to tandem cells (two diodes in series, ~10 parameters).
 - Tandem circuit model (integrating Mikael's method)
