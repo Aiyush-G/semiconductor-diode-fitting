@@ -17,25 +17,43 @@ def iv_curve_figure(
     current: np.ndarray,
     metrics: dict | None = None,
     title: str = "JV Curve",
+    dark_voltage: np.ndarray | None = None,
+    dark_current: np.ndarray | None = None,
 ) -> go.Figure:
     """Build a Plotly figure for a JV curve, with an optional power-density
     overlay on a secondary axis and key metrics marked (Jsc, Voc, MPP).
+
+    When ``dark_current`` is supplied, the dark current density is overlaid on
+    the same primary axis as a dashed blue trace so light and dark share one
+    figure. Colour encodes the quantity (blue = current, orange = power) while
+    line style encodes light (solid) vs dark (dashed).
 
     Args:
         voltage: voltage points (V)
         current: current density (A/cm^2)
         metrics: optional dict from ``key_metrics`` (vmp in V, jmp in A/cm^2)
         title: figure title
+        dark_voltage: optional dark-curve voltage points (V)
+        dark_current: optional dark current density (A/cm^2); when given, drawn
+            as a dashed blue overlay on the primary axis
     """
+    has_dark = dark_current is not None
     # Convert to display units: mA/cm^2 for current density, mW/cm^2 for power.
     current_ma = current * 1e3
     power_mw = voltage * current * 1e3
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=voltage, y=current_ma, mode="lines", name="Current density (mA/cm²)",
+        x=voltage, y=current_ma, mode="lines",
+        name="Light current density (mA/cm²)" if has_dark else "Current density (mA/cm²)",
         line=dict(color="#1f77b4", width=2),
     ))
+    if has_dark:
+        fig.add_trace(go.Scatter(
+            x=dark_voltage, y=dark_current * 1e3, mode="lines",
+            name="Dark current density (mA/cm²)",
+            line=dict(color="#1f77b4", width=2, dash="dash"),
+        ))
     fig.add_trace(go.Scatter(
         x=voltage, y=power_mw, mode="lines", name="Power density (mW/cm²)",
         line=dict(color="#ff7f0e", width=2, dash="dot"),

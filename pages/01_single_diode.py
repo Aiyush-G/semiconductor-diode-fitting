@@ -211,23 +211,26 @@ with col_results:
     metric_ff.metric("Fill factor", f"{metrics['fill_factor']:.3f}")
     metric_eff.metric("Efficiency (%)", f"{metrics['efficiency'] * 1e2:.2f}")
 
-    fig = iv_curve_figure(voltage, current, metrics=metrics, title="Light JV Curve")
-    st.plotly_chart(fig, width="stretch")
-    st.caption(
-        "Light JV curve with the maximum-power point marked and generated "
-        "power density shown on the secondary axis."
-    )
-
     # Compute the dark curve once (when enabled) so the linear, log JV and m(V)
     # plots all share the same arrays.
     dark_curve = iv_curve(params, dark=True) if show_dark else None
+    v_dark, i_dark = dark_curve if dark_curve is not None else (None, None)
 
+    fig = iv_curve_figure(
+        voltage, current, metrics=metrics, title="Light JV Curve",
+        dark_voltage=v_dark, dark_current=i_dark,
+    )
+    st.plotly_chart(fig, width="stretch")
     if dark_curve is not None:
-        v_dark, i_dark = dark_curve
-        fig_dark = iv_curve_figure(v_dark, i_dark, title="Dark JV Curve")
-        st.plotly_chart(fig_dark, width="stretch")
         st.caption(
-            "Dark JV curve calculated with the photo-current set to zero."
+            "Light JV curve with the maximum-power point marked and generated "
+            "power density shown on the secondary axis. The dashed blue trace "
+            "is the dark current density (photo-current set to zero)."
+        )
+    else:
+        st.caption(
+            "Light JV curve with the maximum-power point marked and generated "
+            "power density shown on the secondary axis."
         )
 
     # Diagnostic pair: semilog JV and the local ideality factor, overlaying the
