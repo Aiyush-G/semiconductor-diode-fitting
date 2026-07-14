@@ -78,6 +78,43 @@ def saturation_current_input() -> float:
 # Page metadata and opening copy are kept concise so keyboard and screen-reader
 # users reach the controls quickly.
 st.set_page_config(page_title="Single Diode", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    @media (min-width: 901px) {
+        div[data-testid="column"]:has(.single-diode-control-rail-marker) {
+            position: sticky;
+            top: 4.25rem;
+            align-self: flex-start;
+            max-height: calc(100vh - 5rem);
+            overflow-y: auto;
+            padding-right: 0.35rem;
+        }
+
+        div[data-testid="column"]:has(.single-diode-control-rail-marker)
+        div[data-testid="stVerticalBlock"] {
+            gap: 0.65rem;
+        }
+    }
+
+    @media (max-width: 900px) {
+        div[data-testid="column"]:has(.single-diode-control-rail-marker) {
+            position: static;
+            max-height: none;
+            overflow: visible;
+            padding-right: 0;
+        }
+    }
+
+    .single-diode-control-rail-marker {
+        display: none;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("Single Diode Model")
 
 st.markdown(
@@ -90,6 +127,10 @@ st.markdown(
 col_controls, col_results = st.columns([1, 2], gap="large")
 
 with col_controls:
+    st.markdown(
+        '<div class="single-diode-control-rail-marker"></div>',
+        unsafe_allow_html=True,
+    )
     st.header("Reference parameters")
     st.caption(
         "Area-normalised circuit values at the 25 deg C reference condition "
