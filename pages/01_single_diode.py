@@ -577,7 +577,20 @@ with col_results:
         m_dark_full = local_ideality_factor(v_dark, i_dark, params.temp_k)
         m_series.append(("Dark", *_crop(v_dark, m_dark_full)))
 
-    log_fig = log_jv_figure(jv_series)
+    # Local ideality factor for the imported measurements themselves, using
+    # the same light/dark j_ph convention as the modelled curves above.
+    m_measured = None
+    if imported_dataset is not None and measured_voltage.size >= 2:
+        measured_j_ph = params.j_ph if imported_dataset.kind == "light" else 0.0
+        m_measured = local_ideality_factor(
+            measured_voltage, measured_current, params.temp_k, j_ph=measured_j_ph
+        )
+
+    log_fig = log_jv_figure(
+        jv_series,
+        measured_voltage=measured_voltage, measured_current=measured_current,
+        measured_label=measured_label,
+    )
     log_fig.update_xaxes(range=[v_start, v_end])
     st.plotly_chart(log_fig, width="stretch")
     st.caption(
@@ -586,7 +599,11 @@ with col_results:
         "to toggle the light or dark series."
     )
 
-    m_fig = ideality_factor_figure(m_series)
+    m_fig = ideality_factor_figure(
+        m_series,
+        measured_voltage=measured_voltage, measured_m=m_measured,
+        measured_label=measured_label,
+    )
     m_fig.update_xaxes(range=[v_start, v_end])
     st.plotly_chart(m_fig, width="stretch")
     st.caption(
