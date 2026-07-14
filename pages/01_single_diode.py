@@ -7,7 +7,6 @@ import streamlit as st
 from src.models.data_import import DataImportError, build_dataset
 from src.models.examples import EXAMPLE_DATASETS
 from src.models.fitting import (
-    DEFAULT_INITIAL,
     PARAM_NAMES,
     default_specs,
     fit_diode,
@@ -36,13 +35,19 @@ SATURATION_CURRENT_OPTIONS = [10 ** p for p in range(-15, -5)]
 J0_MIN, J0_MAX = 1e-16, 1e-5
 
 
-def saturation_current_input() -> float:
+def saturation_current_input(
+    fit_key: str | None = None,
+    fit_disabled: bool = False,
+) -> float:
     """Decade select-slider + synced number box for the saturation current J_0.
 
     J_0 spans many orders of magnitude, so the select-slider gives a quick
     decade sweep while the number box allows an exact value (e.g. 3e-14). The
     number box is the source of truth for the model; when it changes, the decade
     selector snaps to the nearest option so the two stay visually consistent.
+
+    When ``fit_key`` is given, a "Fit" checkbox is rendered as a third column
+    (matching ``slider_with_number``); the caller reads ``st.session_state[fit_key]``.
     """
     if "j_0_num" not in st.session_state:
         st.session_state["j_0_num"] = 1e-13
@@ -63,7 +68,10 @@ def saturation_current_input() -> float:
         "Reverse saturation current density in A/cm². This controls the diode "
         "recombination current and strongly affects open-circuit voltage."
     )
-    col_select, col_number = st.columns([3, 1], gap="small")
+    if fit_key is not None:
+        col_select, col_number, col_fit = st.columns([3, 1, 1], gap="small")
+    else:
+        col_select, col_number = st.columns([3, 1], gap="small")
     with col_select:
         st.select_slider(
             "Saturation current density J_0 (A/cm²)",
@@ -84,52 +92,88 @@ def saturation_current_input() -> float:
             on_change=_sync_from_number,
             label_visibility="collapsed",
         )
+    if fit_key is not None:
+        if fit_key not in st.session_state:
+            st.session_state[fit_key] = True
+        with col_fit:
+            st.checkbox("Fit", key=fit_key, help=FIT_TOOLTIP, disabled=fit_disabled)
 
     return st.session_state["j_0_num"]
 
 
-# Display config for the per-parameter fit controls: (label, number format, step).
-FIT_PARAM_UI = {
-    "j_ph": ("J_ph (A/cm²)", "%.4f", 1e-3),
-    "j_0": ("J_0 (A/cm²)", "%.2e", 1e-13),
-    "n": ("n", "%.3f", 0.05),
-    "r_s": ("R_s (Ω·cm²)", "%.3f", 0.05),
-    "r_sh": ("R_sh (Ω·cm²)", "%.0f", 100.0),
-}
+# Tooltip shown on every per-parameter "Fit" checkbox.
+FIT_TOOLTIP = (
+    "Tick a parameter to fit it; unticked parameters stay fixed at the value shown."
+)
 
 
-def fit_parameter_controls(kind: str) -> tuple[set[str], dict[str, float]]:
-    """Render per-parameter free/fixed controls for a fit and read their state.
+@st.dialog("Custom Data")
+def data_load_dialog() -> None:
+    """Modal for loading measured J-V data. Loading only — no fit controls here.
 
-    For each parameter relevant to ``kind`` (dark hides the photocurrent J_ph),
-    show a "Fit" checkbox plus a value box that serves as the initial guess when
-    free or the held-constant value when fixed.
-
-    Returns:
-        (free, initial) where ``free`` is the set of parameter names to fit and
-        ``initial`` maps every shown parameter to its box value.
+    On a successful load (example or imported), the dataset is stored in
+    session_state and the modal is closed via ``st.rerun`` so the main page shows
+    the loaded state and enables the fit controls.
     """
-    names = PARAM_NAMES if kind == "light" else tuple(n for n in PARAM_NAMES if n != "j_ph")
-    free: set[str] = set()
-    initial: dict[str, float] = {}
-    st.caption("Tick a parameter to fit it; unticked parameters stay fixed at the value shown.")
-    for name in names:
-        label, fmt, step = FIT_PARAM_UI[name]
-        col_free, col_val = st.columns([1, 2], gap="small")
-        with col_free:
-            is_free = st.checkbox("Fit", value=True, key=f"fit_free_{name}")
-        with col_val:
-            value = st.number_input(
-                label,
-                value=float(DEFAULT_INITIAL[name]),
-                step=step,
-                format=fmt,
-                key=f"fit_init_{name}",
+    st.caption(
+        "Load measured J-V data to overlay on the graph and fit. Light data can "
+        "fit J_L, J_0, n, R_s, R_sh; dark data fits J_0, n, R_s, R_sh (no photocurrent)."
+    )
+
+    example_choice = st.selectbox(
+        "Example dataset",
+        ["None", *EXAMPLE_DATASETS.keys()],
+        key="fit_example_choice",
+    )
+    if st.button(
+        "Load example",
+        key="fit_load_example",
+        disabled=example_choice == "None",
+    ):
+        st.session_state["imported_dataset"] = EXAMPLE_DATASETS[example_choice]
+        st.session_state.pop("fit_result", None)
+        st.rerun()
+
+    st.markdown("**Or import your own data**")
+    dataset_name = st.text_input("Dataset name", value="My dataset", key="fit_name")
+    kind_label = st.radio(
+        "Data type", ["Light JV", "Dark JV"], key="fit_kind", horizontal=True
+    )
+    v_unit_label = st.radio(
+        "Voltage units", ["V", "mV"], key="fit_v_units", horizontal=True
+    )
+    i_unit_label = st.radio(
+        "Current units", ["A/cm²", "mA/cm²"], key="fit_i_units", horizontal=True
+    )
+    pasted = st.text_area(
+        "Paste two columns (voltage, current)",
+        key="fit_paste",
+        height=130,
+        placeholder="0.0, 0.036\n0.1, 0.0358\n...",
+    )
+    uploaded = st.file_uploader(
+        "...or upload a file",
+        type=["csv", "txt", "tsv", "dat"],
+        key="fit_upload",
+    )
+    if st.button("Import dataset", key="fit_import", type="primary"):
+        if uploaded is not None:
+            text = uploaded.getvalue().decode("utf-8", errors="replace")
+        else:
+            text = pasted
+        try:
+            dataset = build_dataset(
+                text,
+                label=dataset_name or "My dataset",
+                kind="light" if kind_label == "Light JV" else "dark",
+                voltage_units="V" if v_unit_label == "V" else "mV",
+                current_units="A/cm2" if i_unit_label == "A/cm²" else "mA/cm2",
             )
-        initial[name] = float(value)
-        if is_free:
-            free.add(name)
-    return free, initial
+            st.session_state["imported_dataset"] = dataset
+            st.session_state.pop("fit_result", None)
+            st.rerun()
+        except DataImportError as exc:
+            st.error(str(exc))
 
 
 # Page metadata and opening copy are kept concise so keyboard and screen-reader
@@ -192,6 +236,42 @@ with col_controls:
         '<div class="single-diode-control-rail-marker"></div>',
         unsafe_allow_html=True,
     )
+
+    # --- Custom fitting: load data (modal) + fit controls ------------------
+    st.subheader("Custom Fitting")
+    if st.button("Load data", key="fit_open_dialog"):
+        data_load_dialog()
+
+    dataset = st.session_state.get("imported_dataset")
+    if dataset is not None:
+        st.caption(
+            f"Loaded: {dataset.label} — {dataset.kind}, {dataset.voltage.size} points"
+        )
+
+    # Fit / Clear sit side by side and are only clickable once data is loaded.
+    col_fit_btn, col_clear_btn = st.columns(2)
+    fit_clicked = col_fit_btn.button(
+        "Fit dataset", key="fit_run", type="primary", disabled=dataset is None,
+    )
+    clear_clicked = col_clear_btn.button(
+        "Clear dataset", key="fit_clear", disabled=dataset is None,
+    )
+    if dataset is not None:
+        residual_space = st.radio(
+            "Residual space",
+            ["auto", "linear", "log"],
+            key="fit_residual_space",
+            horizontal=True,
+            help=(
+                "How points are weighted: 'log' suits dark data spanning many "
+                "decades; 'linear' suits light data. 'auto' chooses per data type."
+            ),
+        )
+    else:
+        residual_space = "auto"
+
+    st.divider()
+
     st.header("Reference parameters")
     st.caption(
         "Area-normalised circuit values at the 25 deg C reference condition "
@@ -199,6 +279,13 @@ with col_controls:
     )
 
     st.caption("Drag a slider for a quick sweep, or type an exact value in the box.")
+    st.caption(
+        "The value shown for each parameter is used by the fit: it is the initial "
+        "guess when the parameter is ticked to fit, or held constant when unticked."
+    )
+
+    # J_ph is a light-only parameter, so its Fit checkbox is disabled for dark data.
+    dark_loaded = dataset is not None and dataset.kind == "dark"
 
     j_ph_ma = slider_with_number(
         "Photo-current density J_ph (mA/cm²)",
@@ -212,8 +299,11 @@ with col_controls:
             "Light-generated current density in mA/cm². Higher values raise "
             "the short-circuit current density of the light JV curve."
         ),
+        fit_key="fit_free_j_ph",
+        fit_help=FIT_TOOLTIP,
+        fit_disabled=dark_loaded,
     )
-    j_0 = saturation_current_input()
+    j_0 = saturation_current_input(fit_key="fit_free_j_0")
     n = slider_with_number(
         "Ideality factor n",
         min_value=1.0,
@@ -226,6 +316,8 @@ with col_controls:
             "Dimensionless diode ideality factor. Values near 1 represent a "
             "more ideal diode; larger values indicate stronger recombination."
         ),
+        fit_key="fit_free_n",
+        fit_help=FIT_TOOLTIP,
     )
     r_s = slider_with_number(
         "Series resistance R_s (Ω·cm²)",
@@ -239,6 +331,8 @@ with col_controls:
             "Area-normalised series resistance in Ω·cm² from contacts, bulk "
             "material, and wiring. Larger values reduce current at high voltage."
         ),
+        fit_key="fit_free_r_s",
+        fit_help=FIT_TOOLTIP,
     )
     r_sh = slider_with_number(
         "Shunt resistance R_sh (Ω·cm²)",
@@ -252,6 +346,8 @@ with col_controls:
             "Area-normalised leakage-path resistance in Ω·cm². Higher values "
             "generally mean less leakage near short circuit."
         ),
+        fit_key="fit_free_r_sh",
+        fit_help=FIT_TOOLTIP,
     )
 
     st.header("Operating conditions")
@@ -276,110 +372,40 @@ with col_controls:
         ),
     )
 
-    # --- Import & fit measured data ----------------------------------------
     # The fit temperature is taken from the cell-temperature control above (a
     # known, fixed input) rather than being fitted.
     fit_temp_k = temp_c + 273.15
-    with st.expander("Import & fit measured data"):
-        st.caption(
-            "Overlay measured J-V data on the graph and fit the single-diode "
-            "model to it. Light data fits J_L, J_0, n, R_s, R_sh; dark data fits "
-            "J_0, n, R_s, R_sh (no photocurrent)."
-        )
 
-        example_choice = st.selectbox(
-            "Example dataset",
-            ["None", *EXAMPLE_DATASETS.keys()],
-            key="fit_example_choice",
+    # Execute the Fit / Clear actions captured at the top of the rail now that the
+    # reference-parameter values, Fit checkboxes, and temperature are all resolved.
+    # The reference-parameter values (converted to model units) are the fit's
+    # initial guesses; only ticked parameters are freed.
+    if dataset is not None and clear_clicked:
+        st.session_state.pop("imported_dataset", None)
+        st.session_state.pop("fit_result", None)
+        st.rerun()
+    if dataset is not None and fit_clicked:
+        fit_initial = {
+            "j_ph": j_ph_ma * 1e-3,  # mA/cm² -> A/cm²
+            "j_0": j_0,
+            "n": n,
+            "r_s": r_s,
+            "r_sh": r_sh,
+        }
+        fit_free = {
+            name for name in PARAM_NAMES
+            if st.session_state.get(f"fit_free_{name}", False)
+        }
+        # default_specs drops j_ph for dark data, so a stray tick can't fit it.
+        specs = default_specs(dataset.kind, free=fit_free, initial=fit_initial)
+        st.session_state["fit_result"] = fit_diode(
+            dataset.voltage,
+            dataset.current,
+            fit_temp_k,
+            specs,
+            kind=dataset.kind,
+            residual_space=residual_space,
         )
-        if st.button(
-            "Load example",
-            key="fit_load_example",
-            disabled=example_choice == "None",
-        ):
-            st.session_state["imported_dataset"] = EXAMPLE_DATASETS[example_choice]
-            st.session_state.pop("fit_result", None)
-
-        st.markdown("**Or import your own data**")
-        dataset_name = st.text_input("Dataset name", value="My dataset", key="fit_name")
-        kind_label = st.radio(
-            "Data type", ["Light JV", "Dark JV"], key="fit_kind", horizontal=True
-        )
-        v_unit_label = st.radio(
-            "Voltage units", ["V", "mV"], key="fit_v_units", horizontal=True
-        )
-        i_unit_label = st.radio(
-            "Current units", ["A/cm²", "mA/cm²"], key="fit_i_units", horizontal=True
-        )
-        pasted = st.text_area(
-            "Paste two columns (voltage, current)",
-            key="fit_paste",
-            height=130,
-            placeholder="0.0, 0.036\n0.1, 0.0358\n...",
-        )
-        uploaded = st.file_uploader(
-            "...or upload a file",
-            type=["csv", "txt", "tsv", "dat"],
-            key="fit_upload",
-        )
-        if st.button("Import dataset", key="fit_import"):
-            if uploaded is not None:
-                text = uploaded.getvalue().decode("utf-8", errors="replace")
-            else:
-                text = pasted
-            try:
-                dataset = build_dataset(
-                    text,
-                    label=dataset_name or "My dataset",
-                    kind="light" if kind_label == "Light JV" else "dark",
-                    voltage_units="V" if v_unit_label == "V" else "mV",
-                    current_units="A/cm2" if i_unit_label == "A/cm²" else "mA/cm2",
-                    temp_k=fit_temp_k,
-                )
-                st.session_state["imported_dataset"] = dataset
-                st.session_state.pop("fit_result", None)
-                st.success(
-                    f"Imported {dataset.voltage.size} points as "
-                    f"'{dataset.label}' ({dataset.kind})."
-                )
-            except DataImportError as exc:
-                st.error(str(exc))
-
-        dataset = st.session_state.get("imported_dataset")
-        if dataset is not None:
-            st.markdown(
-                f"**Loaded:** {dataset.label} — {dataset.kind}, "
-                f"{dataset.voltage.size} points"
-            )
-            fit_free, fit_initial = fit_parameter_controls(dataset.kind)
-            residual_space = st.radio(
-                "Residual space",
-                ["auto", "linear", "log"],
-                key="fit_residual_space",
-                horizontal=True,
-                help=(
-                    "How points are weighted: 'log' suits dark data spanning many "
-                    "decades; 'linear' suits light data. 'auto' chooses per data type."
-                ),
-            )
-            if st.button("Fit dataset", key="fit_run", type="primary"):
-                if not fit_free:
-                    st.warning("Select at least one parameter to fit.")
-                else:
-                    specs = default_specs(
-                        dataset.kind, free=fit_free, initial=fit_initial
-                    )
-                    st.session_state["fit_result"] = fit_diode(
-                        dataset.voltage,
-                        dataset.current,
-                        fit_temp_k,
-                        specs,
-                        kind=dataset.kind,
-                        residual_space=residual_space,
-                    )
-            if st.button("Clear dataset", key="fit_clear"):
-                st.session_state.pop("imported_dataset", None)
-                st.session_state.pop("fit_result", None)
 
 # Convert the visible controls into model parameters before applying the
 # temperature adjustment. The reference values remain anchored to 25 deg C.

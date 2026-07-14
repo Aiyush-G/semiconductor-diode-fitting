@@ -22,6 +22,9 @@ def slider_with_number(
     key: str,
     help: str | None = None,
     fmt: str | None = None,
+    fit_key: str | None = None,
+    fit_help: str | None = None,
+    fit_disabled: bool = False,
 ):
     """Render a slider and a number_input side-by-side that stay in sync.
 
@@ -30,6 +33,11 @@ def slider_with_number(
     bound is sticky for the session (it grows but never shrinks) because
     shrinking a slider's ``max_value`` makes Streamlit reset the slider to its
     minimum. ``min_value`` remains a hard floor.
+
+    Optionally, a "Fit" checkbox can be rendered as a third column (used by the
+    fitting workflow to mark this parameter free/fixed). It is added *inside* this
+    control's own column row rather than as an outer wrapper, so it does not add
+    an extra level of column nesting.
 
     Args:
         label: control label (shown on the slider; the number box mirrors it).
@@ -40,6 +48,10 @@ def slider_with_number(
         key: base session_state key; the widgets use ``{key}_sld`` / ``{key}_num``.
         help: tooltip shown on the slider label.
         fmt: optional printf-style format for the number box (e.g. "%.2f").
+        fit_key: if given, render a "Fit" checkbox with this session_state key in a
+            third column. The caller reads the state from ``st.session_state[fit_key]``.
+        fit_help: tooltip for the Fit checkbox.
+        fit_disabled: render the Fit checkbox disabled (e.g. J_ph on dark data).
 
     Returns:
         The current value (kept identical across both widgets).
@@ -69,7 +81,10 @@ def slider_with_number(
     slider_max = max(st.session_state[emax_key], current)
     st.session_state[emax_key] = slider_max
 
-    col_slider, col_number = st.columns([3, 1], gap="small")
+    if fit_key is not None:
+        col_slider, col_number, col_fit = st.columns([3, 1, 1], gap="small")
+    else:
+        col_slider, col_number = st.columns([3, 1], gap="small")
     with col_slider:
         st.slider(
             label,
@@ -91,5 +106,10 @@ def slider_with_number(
         if fmt is not None:
             number_kwargs["format"] = fmt
         st.number_input(label, **number_kwargs)
+    if fit_key is not None:
+        if fit_key not in st.session_state:
+            st.session_state[fit_key] = True
+        with col_fit:
+            st.checkbox("Fit", key=fit_key, help=fit_help, disabled=fit_disabled)
 
     return st.session_state[sld_key]

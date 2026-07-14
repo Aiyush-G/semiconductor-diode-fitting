@@ -211,12 +211,13 @@ def pack(specs: dict[str, ParamSpec]) -> tuple[np.ndarray, np.ndarray, np.ndarra
         theta0.append(_forward(spec.value, spec.log))
         lower.append(_forward(spec.lower, spec.log))
         upper.append(_forward(spec.upper, spec.log))
-    return (
-        np.asarray(theta0, dtype=float),
-        np.asarray(lower, dtype=float),
-        np.asarray(upper, dtype=float),
-        tuple(free_names),
-    )
+    lower_arr = np.asarray(lower, dtype=float)
+    upper_arr = np.asarray(upper, dtype=float)
+    # Clamp the start vector onto the feasible box: a user-supplied initial guess
+    # (e.g. a slider value typed past a bound) must not make least_squares reject
+    # x0 as infeasible. Only the seed is nudged, not the bounds.
+    theta0_arr = np.clip(np.asarray(theta0, dtype=float), lower_arr, upper_arr)
+    return (theta0_arr, lower_arr, upper_arr, tuple(free_names))
 
 
 def unpack(theta: np.ndarray, specs: dict[str, ParamSpec], temp_k: float) -> DiodeParams:
