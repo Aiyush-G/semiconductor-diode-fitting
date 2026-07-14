@@ -83,6 +83,7 @@ st.markdown(
     """
     <style>
     @media (min-width: 901px) {
+        div[data-testid="stColumn"]:has(.single-diode-control-rail-marker),
         div[data-testid="column"]:has(.single-diode-control-rail-marker) {
             position: sticky;
             top: 4.25rem;
@@ -92,13 +93,16 @@ st.markdown(
             padding-right: 0.35rem;
         }
 
+        div[data-testid="stColumn"]:has(.single-diode-control-rail-marker)
+            > div[data-testid="stVerticalBlock"],
         div[data-testid="column"]:has(.single-diode-control-rail-marker)
-        div[data-testid="stVerticalBlock"] {
+            > div[data-testid="stVerticalBlock"] {
             gap: 0.65rem;
         }
     }
 
     @media (max-width: 900px) {
+        div[data-testid="stColumn"]:has(.single-diode-control-rail-marker),
         div[data-testid="column"]:has(.single-diode-control-rail-marker) {
             position: static;
             max-height: none;
