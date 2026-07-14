@@ -174,6 +174,51 @@ def iv_curve(params: DiodeParams, v_max: float = 1.2, n_points: int = 200,
     return voltage, current
 
 
+def local_ideality_factor(
+    voltage: np.ndarray,
+    current: np.ndarray,
+    temp_k: float,
+    j_floor: float = 1e-9,
+) -> np.ndarray:
+    """Local (voltage-dependent) diode ideality factor m(V).
+
+    Defined from the slope of the semilog JV curve:
+
+        m(V) = (1 / Vt) * dV / d(ln|J|)
+
+    In the exponential/diode-dominated region m is close to the diode ideality
+    factor n; it departs from n where series/shunt resistance or recombination
+    dominate. This is the standard companion diagnostic to a log JV plot.
+
+    Args:
+        voltage: voltage points (V), assumed monotonically increasing
+        current: current density (A/cm^2), same shape as ``voltage``
+        temp_k: cell temperature (K), used for the thermal voltage Vt
+        j_floor: |J| values below this (A/cm^2) are treated as invalid; near the
+            J -> 0 crossing (e.g. Voc) ln|J| is singular and the derivative blows up
+
+    Returns:
+        array of m values, same shape as ``voltage``. Points where |J| < j_floor
+        or where the numeric derivative is non-finite are set to NaN so plots
+        leave gaps there rather than drawing spurious spikes.
+    """
+    vt = thermal_voltage(temp_k)
+    j = np.abs(current)
+    mask = j > j_floor
+
+    # ln|J| is only evaluated where J is safely above the floor; elsewhere it is
+    # left as NaN so np.gradient propagates the gap into the derivative.
+    ln_j = np.full_like(j, np.nan, dtype=float)
+    np.log(j, out=ln_j, where=mask)
+
+    dlnj_dv = np.gradient(ln_j, voltage)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        m = 1.0 / (vt * dlnj_dv)
+
+    m[~np.isfinite(m)] = np.nan
+    return m
+
+
 def key_metrics(voltage: np.ndarray, current: np.ndarray) -> dict:
     """Extract standard solar cell metrics from a JV curve.
 

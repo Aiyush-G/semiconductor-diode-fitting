@@ -8,6 +8,9 @@ convention); it is converted to mA/cm^2 for display, and power to mW/cm^2.
 import numpy as np
 import plotly.graph_objects as go
 
+# Shared per-series colours so the light/dark traces match the linear JV plot.
+SERIES_COLORS = {"Light": "#1f77b4", "Dark": "#ff7f0e"}
+
 
 def iv_curve_figure(
     voltage: np.ndarray,
