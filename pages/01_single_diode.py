@@ -4,6 +4,14 @@ import math
 
 import streamlit as st
 
+from src.models.data_import import DataImportError, build_dataset
+from src.models.examples import EXAMPLE_DATASETS
+from src.models.fitting import (
+    DEFAULT_INITIAL,
+    PARAM_NAMES,
+    default_specs,
+    fit_diode,
+)
 from src.models.single_diode import (
     DiodeParams,
     iv_curve,
@@ -12,7 +20,12 @@ from src.models.single_diode import (
 )
 from src.models.temperature import TemperatureCoefficients, adjust_params_for_temperature
 from ui.inputs import slider_with_number
-from ui.plotting import ideality_factor_figure, iv_curve_figure, log_jv_figure
+from ui.plotting import (
+    ideality_factor_figure,
+    iv_curve_figure,
+    log_jv_figure,
+    residual_figure,
+)
 
 
 REFERENCE_TEMP_K = 298.15
