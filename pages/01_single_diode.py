@@ -172,6 +172,53 @@ def data_load_dialog() -> None:
             st.error(str(exc))
 
 
+@st.dialog("Fit results", width="large")
+def fit_results_dialog() -> None:
+    """Modal showing the most recent fit's summary, metrics, and residuals."""
+    imported_dataset = st.session_state.get("imported_dataset")
+    fit_result = st.session_state.get("fit_result")
+    if fit_result is None or imported_dataset is None:
+        st.caption("No fit has been run yet.")
+        return
+
+    status = "converged" if fit_result.success else "did not converge"
+    st.caption(
+        f"Fitted {', '.join(fit_result.free_names)} to '{imported_dataset.label}' "
+        f"({fit_result.n_points} points, {fit_result.residual_space} residuals) — {status}."
+    )
+
+    p = fit_result.params
+    pcol1, pcol2, pcol3, pcol4, pcol5 = st.columns(5)
+    pcol1.metric("J_L (mA/cm²)", f"{p.j_ph * 1e3:.3f}")
+    pcol2.metric("J_0 (A/cm²)", f"{p.j_0:.3e}")
+    pcol3.metric("n", f"{p.n:.3f}")
+    pcol4.metric("R_s (Ω·cm²)", f"{p.r_s:.3f}")
+    pcol5.metric("R_sh (Ω·cm²)", f"{p.r_sh:.4g}")
+
+    mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+    mcol1.metric("RMSE (mA/cm²)", f"{fit_result.rmse * 1e3:.4f}")
+    mcol2.metric("R²", f"{fit_result.r_squared:.5f}")
+    mcol3.metric("Max |resid| (mA/cm²)", f"{fit_result.max_abs_residual * 1e3:.4f}")
+    if fit_result.rmse_log is not None:
+        mcol4.metric("RMSE (log₁₀|J|)", f"{fit_result.rmse_log:.4f}")
+
+    st.caption(f"Optimizer message: {fit_result.message}")
+
+    st.plotly_chart(
+        residual_figure(
+            imported_dataset.voltage,
+            fit_result.residual,
+            residual_space=fit_result.residual_space,
+        ),
+        width="stretch",
+    )
+    st.caption(
+        "Residual = fitted − measured current density at each point. A "
+        "structureless scatter about zero indicates a good fit; systematic "
+        "curvature points to a model/parameter mismatch."
+    )
+
+
 # Page metadata and opening copy are kept concise so keyboard and screen-reader
 # users reach the controls quickly.
 st.set_page_config(page_title="Single Diode", layout="wide")
@@ -401,6 +448,7 @@ with col_controls:
             kind=dataset.kind,
             residual_space=residual_space,
         )
+        fit_results_dialog()
 
 # Convert the visible controls into model parameters before applying the
 # temperature adjustment. The reference values remain anchored to 25 deg C.
@@ -505,43 +553,9 @@ with col_results:
         "shunt resistance dominate; gaps appear near the J→0 crossing (Voc)."
     )
 
-    # --- Fit summary and residuals -----------------------------------------
+    # --- Fit summary and residuals (shown in a modal) ----------------------
     if fit_result is not None:
-        st.subheader("Fit results")
-
         status = "converged" if fit_result.success else "did not converge"
-        st.caption(
-            f"Fitted {', '.join(fit_result.free_names)} to '{measured_label}' "
-            f"({fit_result.n_points} points, {fit_result.residual_space} residuals) — {status}."
-        )
-
-        p = fit_result.params
-        pcol1, pcol2, pcol3, pcol4, pcol5 = st.columns(5)
-        pcol1.metric("J_L (mA/cm²)", f"{p.j_ph * 1e3:.3f}")
-        pcol2.metric("J_0 (A/cm²)", f"{p.j_0:.3e}")
-        pcol3.metric("n", f"{p.n:.3f}")
-        pcol4.metric("R_s (Ω·cm²)", f"{p.r_s:.3f}")
-        pcol5.metric("R_sh (Ω·cm²)", f"{p.r_sh:.4g}")
-
-        mcol1, mcol2, mcol3, mcol4 = st.columns(4)
-        mcol1.metric("RMSE (mA/cm²)", f"{fit_result.rmse * 1e3:.4f}")
-        mcol2.metric("R²", f"{fit_result.r_squared:.5f}")
-        mcol3.metric("Max |resid| (mA/cm²)", f"{fit_result.max_abs_residual * 1e3:.4f}")
-        if fit_result.rmse_log is not None:
-            mcol4.metric("RMSE (log₁₀|J|)", f"{fit_result.rmse_log:.4f}")
-
-        st.caption(f"Optimizer message: {fit_result.message}")
-
-        st.plotly_chart(
-            residual_figure(
-                imported_dataset.voltage,
-                fit_result.residual,
-                residual_space=fit_result.residual_space,
-            ),
-            width="stretch",
-        )
-        st.caption(
-            "Residual = fitted − measured current density at each point. A "
-            "structureless scatter about zero indicates a good fit; systematic "
-            "curvature points to a model/parameter mismatch."
-        )
+        st.caption(f"Last fit {status}. ")
+        if st.button("View fit results", key="fit_view_results"):
+            fit_results_dialog()
