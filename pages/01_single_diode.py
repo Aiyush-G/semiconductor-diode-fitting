@@ -234,141 +234,138 @@ with col_controls:
     )
 
     # --- Custom fitting: load data (modal) + fit controls ------------------
-    st.header("Custom Fitting")
-    
-    # Place Load, Fit and Clear on a single row for compact controls.
-    col_load_btn, col_fit_btn, col_clear_btn = st.columns([1, 1, 1])
+    with st.expander("Custom Fitting", expanded=True):
+        # Place Load, Fit and Clear on a single row for compact controls.
+        col_load_btn, col_fit_btn, col_clear_btn = st.columns([1, 1, 1])
 
-    with col_load_btn:
-        if st.button("Load data", key="fit_open_dialog"):
-            data_load_dialog()
+        with col_load_btn:
+            if st.button("Load data", key="fit_open_dialog"):
+                data_load_dialog()
 
-    dataset = st.session_state.get("imported_dataset")
-    if dataset is not None:
+        dataset = st.session_state.get("imported_dataset")
+        if dataset is not None:
+            st.caption(
+                f"Loaded: {dataset.label} — {dataset.kind}, {dataset.voltage.size} points"
+            )
+
+        # Fit / Clear sit side by side on the same row and are only clickable once data is loaded.
+        fit_clicked = col_fit_btn.button(
+            "Fit dataset", key="fit_run", type="primary", disabled=dataset is None,
+        )
+        clear_clicked = col_clear_btn.button(
+            "Clear dataset", key="fit_clear", disabled=dataset is None,
+        )
+        if dataset is not None:
+            residual_space = st.radio(
+                "Residual space",
+                ["auto", "linear", "log"],
+                key="fit_residual_space",
+                horizontal=True,
+                help=(
+                    "How points are weighted: 'log' suits dark data spanning many "
+                    "decades; 'linear' suits light data. 'auto' chooses per data type."
+                ),
+            )
+        else:
+            residual_space = "auto"
+
+    with st.expander("Reference parameters", expanded=True):
         st.caption(
-            f"Loaded: {dataset.label} — {dataset.kind}, {dataset.voltage.size} points"
+            "Area-normalised circuit values at the 25 deg C reference condition "
+            "(PV Lighthouse convention)."
         )
 
-    # Fit / Clear sit side by side on the same row and are only clickable once data is loaded.
-    fit_clicked = col_fit_btn.button(
-        "Fit dataset", key="fit_run", type="primary", disabled=dataset is None,
-    )
-    clear_clicked = col_clear_btn.button(
-        "Clear dataset", key="fit_clear", disabled=dataset is None,
-    )
-    if dataset is not None:
-        residual_space = st.radio(
-            "Residual space",
-            ["auto", "linear", "log"],
-            key="fit_residual_space",
-            horizontal=True,
+        st.caption("Drag a slider for a quick sweep, or type an exact value in the box.")
+        st.caption(
+            "The value shown for each parameter is used by the fit: it is the initial "
+            "guess when the parameter is ticked to fit, or held constant when unticked."
+        )
+
+        st.caption("Once a custom dataset has been loaded, tick a parameter to fit it; unticked parameters stay fixed at the value shown.")
+
+        # J_ph is a light-only parameter, so its Fit checkbox is disabled for dark data.
+        dark_loaded = dataset is not None and dataset.kind == "dark"
+
+        j_ph_ma = slider_with_number(
+            "Photo-current density J_ph (mA/cm²)",
+            min_value=0.0,
+            max_value=50.0,
+            value=40.0,
+            step=0.5,
+            key="j_ph_ma",
+            fmt="%.1f",
             help=(
-                "How points are weighted: 'log' suits dark data spanning many "
-                "decades; 'linear' suits light data. 'auto' chooses per data type."
+                "Light-generated current density in mA/cm². Higher values raise "
+                "the short-circuit current density of the light JV curve."
+            ),
+            fit_key="fit_free_j_ph",
+            fit_disabled=dark_loaded,
+        )
+        j_0 = saturation_current_input(fit_key="fit_free_j_0")
+        n = slider_with_number(
+            "Ideality factor n",
+            min_value=1.0,
+            max_value=2.0,
+            value=1.0,
+            step=0.05,
+            key="n",
+            fmt="%.2f",
+            help=(
+                "Dimensionless diode ideality factor. Values near 1 represent a "
+                "more ideal diode; larger values indicate stronger recombination."
+            ),
+            fit_key="fit_free_n",
+        )
+        r_s = slider_with_number(
+            "Series resistance R_s (Ω·cm²)",
+            min_value=0.0,
+            max_value=5.0,
+            value=0.5,
+            step=0.05,
+            key="r_s",
+            fmt="%.2f",
+            help=(
+                "Area-normalised series resistance in Ω·cm² from contacts, bulk "
+                "material, and wiring. Larger values reduce current at high voltage."
+            ),
+            fit_key="fit_free_r_s",
+        )
+        r_sh = slider_with_number(
+            "Shunt resistance R_sh (Ω·cm²)",
+            min_value=100.0,
+            max_value=100000.0,
+            value=1000.0,
+            step=100.0,
+            key="r_sh",
+            fmt="%.0f",
+            help=(
+                "Area-normalised leakage-path resistance in Ω·cm². Higher values "
+                "generally mean less leakage near short circuit."
+            ),
+            fit_key="fit_free_r_sh",
+        )
+
+    with st.expander("Operating conditions", expanded=True):
+        temp_c = slider_with_number(
+            "Cell temperature (deg C)",
+            min_value=-20,
+            max_value=85,
+            value=25,
+            step=1,
+            key="temp_c",
+            help=(
+                "Cell temperature used to adjust the reference photocurrent and "
+                "saturation current before the IV curve is calculated."
             ),
         )
-    else:
-        residual_space = "auto"
-
-    st.divider()
-
-    st.header("Reference parameters")
-    st.caption(
-        "Area-normalised circuit values at the 25 deg C reference condition "
-        "(PV Lighthouse convention)."
-    )
-
-    st.caption("Drag a slider for a quick sweep, or type an exact value in the box.")
-    st.caption(
-        "The value shown for each parameter is used by the fit: it is the initial "
-        "guess when the parameter is ticked to fit, or held constant when unticked."
-    )
-
-    st.caption("Once a custom dataset has been loaded, tick a parameter to fit it; unticked parameters stay fixed at the value shown.")
-
-    # J_ph is a light-only parameter, so its Fit checkbox is disabled for dark data.
-    dark_loaded = dataset is not None and dataset.kind == "dark"
-
-    j_ph_ma = slider_with_number(
-        "Photo-current density J_ph (mA/cm²)",
-        min_value=0.0,
-        max_value=50.0,
-        value=40.0,
-        step=0.5,
-        key="j_ph_ma",
-        fmt="%.1f",
-        help=(
-            "Light-generated current density in mA/cm². Higher values raise "
-            "the short-circuit current density of the light JV curve."
-        ),
-        fit_key="fit_free_j_ph",
-        fit_disabled=dark_loaded,
-    )
-    j_0 = saturation_current_input(fit_key="fit_free_j_0")
-    n = slider_with_number(
-        "Ideality factor n",
-        min_value=1.0,
-        max_value=2.0,
-        value=1.0,
-        step=0.05,
-        key="n",
-        fmt="%.2f",
-        help=(
-            "Dimensionless diode ideality factor. Values near 1 represent a "
-            "more ideal diode; larger values indicate stronger recombination."
-        ),
-        fit_key="fit_free_n",
-    )
-    r_s = slider_with_number(
-        "Series resistance R_s (Ω·cm²)",
-        min_value=0.0,
-        max_value=5.0,
-        value=0.5,
-        step=0.05,
-        key="r_s",
-        fmt="%.2f",
-        help=(
-            "Area-normalised series resistance in Ω·cm² from contacts, bulk "
-            "material, and wiring. Larger values reduce current at high voltage."
-        ),
-        fit_key="fit_free_r_s",
-    )
-    r_sh = slider_with_number(
-        "Shunt resistance R_sh (Ω·cm²)",
-        min_value=100.0,
-        max_value=100000.0,
-        value=1000.0,
-        step=100.0,
-        key="r_sh",
-        fmt="%.0f",
-        help=(
-            "Area-normalised leakage-path resistance in Ω·cm². Higher values "
-            "generally mean less leakage near short circuit."
-        ),
-        fit_key="fit_free_r_sh",
-    )
-
-    st.header("Operating conditions")
-    temp_c = slider_with_number(
-        "Cell temperature (deg C)",
-        min_value=-20,
-        max_value=85,
-        value=25,
-        step=1,
-        key="temp_c",
-        help=(
-            "Cell temperature used to adjust the reference photocurrent and "
-            "saturation current before the IV curve is calculated."
-        ),
-    )
-    show_dark = st.checkbox(
-        "Overlay dark IV curve",
-        value=False,
-        help=(
-            "Show a second IV curve with photo-current set to zero while "
-            "keeping the other adjusted diode parameters unchanged."
-        ),
-    )
+        show_dark = st.checkbox(
+            "Overlay dark IV curve",
+            value=False,
+            help=(
+                "Show a second IV curve with photo-current set to zero while "
+                "keeping the other adjusted diode parameters unchanged."
+            ),
+        )
 
     # The fit temperature is taken from the cell-temperature control above (a
     # known, fixed input) rather than being fitted.
