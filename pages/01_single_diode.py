@@ -235,8 +235,13 @@ with col_controls:
 
     # --- Custom fitting: load data (modal) + fit controls ------------------
     st.header("Custom Fitting")
-    if st.button("Load data", key="fit_open_dialog"):
-        data_load_dialog()
+    
+    # Place Load, Fit and Clear on a single row for compact controls.
+    col_load_btn, col_fit_btn, col_clear_btn = st.columns([1, 1, 1])
+
+    with col_load_btn:
+        if st.button("Load data", key="fit_open_dialog"):
+            data_load_dialog()
 
     dataset = st.session_state.get("imported_dataset")
     if dataset is not None:
@@ -244,8 +249,7 @@ with col_controls:
             f"Loaded: {dataset.label} — {dataset.kind}, {dataset.voltage.size} points"
         )
 
-    # Fit / Clear sit side by side and are only clickable once data is loaded.
-    col_fit_btn, col_clear_btn = st.columns(2)
+    # Fit / Clear sit side by side on the same row and are only clickable once data is loaded.
     fit_clicked = col_fit_btn.button(
         "Fit dataset", key="fit_run", type="primary", disabled=dataset is None,
     )
