@@ -405,6 +405,59 @@ with col_controls:
                 "saturation current before the IV curve is calculated."
             ),
         )
+
+        # Convert the visible controls into model parameters before applying
+        # the temperature adjustment. The reference values remain anchored to
+        # 25 deg C. J_ph is entered in mA/cm² but the model works internally
+        # in A/cm². Computed here (rather than after col_controls) so the
+        # range slider below can be bounded by the actual auto-extended sweep.
+        ref_params = DiodeParams(
+            j_ph=j_ph_ma * 1e-3,
+            j_0=j_0,
+            n=n,
+            r_s=r_s,
+            r_sh=r_sh,
+            temp_k=REFERENCE_TEMP_K,
+        )
+        target_temp_k = temp_c + 273.15
+
+        if abs(target_temp_k - REFERENCE_TEMP_K) > 0.01:
+            params = adjust_params_for_temperature(
+                ref_params,
+                target_temp_k,
+                TemperatureCoefficients(),
+            )
+        else:
+            params = ref_params
+
+        voltage, current = iv_curve(params)
+        metrics = key_metrics(voltage, current)
+        v_max_bound = float(voltage[-1])
+
+        range_key = "v_range"
+        if range_key not in st.session_state:
+            st.session_state[range_key] = (0.0, v_max_bound)
+        else:
+            lo, hi = st.session_state[range_key]
+            lo = min(lo, v_max_bound)
+            hi = min(hi, v_max_bound)
+            if hi <= lo:
+                hi = v_max_bound
+            st.session_state[range_key] = (lo, hi)
+
+        v_start, v_end = st.slider(
+            "Voltage range for plots (V)",
+            min_value=0.0,
+            max_value=v_max_bound,
+            step=0.01,
+            key=range_key,
+            help=(
+                "Restricts the voltage window shown in the Results graphs "
+                "below. Metrics (Jsc, Voc, Pmax, FF, Efficiency) always "
+                "reflect the full curve regardless of this range."
+            ),
+        )
+
         show_dark = st.checkbox(
             "Overlay dark IV curve",
             value=False,
@@ -450,33 +503,6 @@ with col_controls:
         )
         fit_results_dialog()
 
-# Convert the visible controls into model parameters before applying the
-# temperature adjustment. The reference values remain anchored to 25 deg C.
-# J_ph is entered in mA/cm² but the model works internally in A/cm².
-ref_params = DiodeParams(
-    j_ph=j_ph_ma * 1e-3,
-    j_0=j_0,
-    n=n,
-    r_s=r_s,
-    r_sh=r_sh,
-    temp_k=REFERENCE_TEMP_K,
-)
-target_temp_k = temp_c + 273.15
-
-if abs(target_temp_k - REFERENCE_TEMP_K) > 0.01:
-    params = adjust_params_for_temperature(
-        ref_params,
-        target_temp_k,
-        TemperatureCoefficients(),
-    )
-else:
-    params = ref_params
-
-# Model evaluation is kept outside the rendering blocks so UI layout changes do
-# not affect the physics path.
-voltage, current = iv_curve(params)
-metrics = key_metrics(voltage, current)
-
 with col_results:
     st.header("Results")
 
@@ -502,13 +528,28 @@ with col_results:
     fitted_voltage = imported_dataset.voltage if fit_result is not None else None
     fitted_current = fit_result.model_current if fit_result is not None else None
 
+    # Crop only the modelled light/dark traces to the selected voltage range;
+    # metrics above stay computed from the full curve. The x-axis range set
+    # below keeps the window tight even where other traces (MPP marker,
+    # measured/fitted overlays) fall outside it.
+    def _crop(v, i):
+        mask = (v >= v_start) & (v <= v_end)
+        return v[mask], i[mask]
+
+    voltage_plot, current_plot = _crop(voltage, current)
+    if dark_curve is not None:
+        v_dark_plot, i_dark_plot = _crop(v_dark, i_dark)
+    else:
+        v_dark_plot, i_dark_plot = None, None
+
     fig = iv_curve_figure(
-        voltage, current, metrics=metrics, title="JV Curve",
-        dark_voltage=v_dark, dark_current=i_dark,
+        voltage_plot, current_plot, metrics=metrics, title="JV Curve",
+        dark_voltage=v_dark_plot, dark_current=i_dark_plot,
         measured_voltage=measured_voltage, measured_current=measured_current,
         measured_label=measured_label,
         fitted_voltage=fitted_voltage, fitted_current=fitted_current,
     )
+    fig.update_xaxes(range=[v_start, v_end])
     st.plotly_chart(fig, width="stretch")
     if dark_curve is not None:
         st.caption(
@@ -524,29 +565,30 @@ with col_results:
 
     # Diagnostic pair: semilog JV and the local ideality factor, overlaying the
     # light and (when enabled) dark curves. Click a legend entry to hide a series.
-    jv_series = [("Light", voltage, current)]
-    m_series = [
-        (
-            "Light",
-            voltage,
-            local_ideality_factor(voltage, current, params.temp_k, j_ph=params.j_ph),
-        )
-    ]
+    # m(V) is derived from the full (uncropped) arrays first — np.gradient needs
+    # uncropped neighbors near the edges for an accurate derivative — then both
+    # the voltage and derived series are cropped together for display.
+    m_light_full = local_ideality_factor(voltage, current, params.temp_k, j_ph=params.j_ph)
+    jv_series = [("Light", *_crop(voltage, current))]
+    m_series = [("Light", *_crop(voltage, m_light_full))]
     if dark_curve is not None:
-        jv_series.append(("Dark", v_dark, i_dark))
+        jv_series.append(("Dark", v_dark_plot, i_dark_plot))
         # Dark current already encodes zero photocurrent, so j_ph stays 0.
-        m_series.append(
-            ("Dark", v_dark, local_ideality_factor(v_dark, i_dark, params.temp_k))
-        )
+        m_dark_full = local_ideality_factor(v_dark, i_dark, params.temp_k)
+        m_series.append(("Dark", *_crop(v_dark, m_dark_full)))
 
-    st.plotly_chart(log_jv_figure(jv_series), width="stretch")
+    log_fig = log_jv_figure(jv_series)
+    log_fig.update_xaxes(range=[v_start, v_end])
+    st.plotly_chart(log_fig, width="stretch")
     st.caption(
         "Semilog JV curve: |current density| on a log axis reveals the "
         "exponential diode region across several decades. Click a legend entry "
         "to toggle the light or dark series."
     )
 
-    st.plotly_chart(ideality_factor_figure(m_series), width="stretch")
+    m_fig = ideality_factor_figure(m_series)
+    m_fig.update_xaxes(range=[v_start, v_end])
+    st.plotly_chart(m_fig, width="stretch")
     st.caption(
         "Local ideality factor m(V) = (1/Vt)·dV/d(ln|J|). It sits near the diode "
         "ideality factor n in the exponential region and departs where series/"
