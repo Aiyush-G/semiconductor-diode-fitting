@@ -17,7 +17,7 @@ Use pvlib under the hood (https://pvlib-python.readthedocs.io/en/stable/index.ht
 - [x] Implement JV curve generation for both light and dark conditions
 - [x] Implement industry-standard temperature dependence using Faiman/PVsyst as reference
 - [x] Cross-check output against PV Lighthouse's equivalent circuit calculator
-- [] Add log JV and mV curves
+- [x] Add log JV and mV curves
 - [] Explore how written documentation can be added to the frontend
 
 

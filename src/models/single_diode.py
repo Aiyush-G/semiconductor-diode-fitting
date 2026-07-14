@@ -178,32 +178,39 @@ def local_ideality_factor(
     voltage: np.ndarray,
     current: np.ndarray,
     temp_k: float,
+    j_ph: float = 0.0,
     j_floor: float = 1e-9,
 ) -> np.ndarray:
     """Local (voltage-dependent) diode ideality factor m(V).
 
-    Defined from the slope of the semilog JV curve:
+    Defined from the slope of the semilog *recombination* current:
 
-        m(V) = (1 / Vt) * dV / d(ln|J|)
+        J_rec(V) = J_ph - J(V)          (the current flowing into the diode)
+        m(V)     = (1 / Vt) * dV / d(ln|J_rec|)
 
-    In the exponential/diode-dominated region m is close to the diode ideality
-    factor n; it departs from n where series/shunt resistance or recombination
-    dominate. This is the standard companion diagnostic to a log JV plot.
+    Using J_rec rather than the raw terminal current is what makes m physically
+    meaningful for both curves: it increases exponentially with V (J_rec ~ J_0
+    exp(V / n Vt)) so m sits near the diode ideality factor n in the exponential
+    region, and departs where series/shunt resistance dominate. For the dark
+    curve J_ph = 0, so J_rec reduces to |J_dark|; for the light curve J_ph is the
+    photocurrent (a Suns-Voc / pseudo-dark style analysis).
 
     Args:
         voltage: voltage points (V), assumed monotonically increasing
-        current: current density (A/cm^2), same shape as ``voltage``
+        current: terminal current density (A/cm^2), same shape as ``voltage``
         temp_k: cell temperature (K), used for the thermal voltage Vt
-        j_floor: |J| values below this (A/cm^2) are treated as invalid; near the
-            J -> 0 crossing (e.g. Voc) ln|J| is singular and the derivative blows up
+        j_ph: photocurrent density (A/cm^2) used to form J_rec = J_ph - J. Pass 0
+            for a dark curve (its current already encodes zero photocurrent).
+        j_floor: |J_rec| values below this (A/cm^2) are treated as invalid; where
+            J_rec -> 0 (e.g. near Jsc on the light curve) ln|J_rec| is singular.
 
     Returns:
-        array of m values, same shape as ``voltage``. Points where |J| < j_floor
-        or where the numeric derivative is non-finite are set to NaN so plots
-        leave gaps there rather than drawing spurious spikes.
+        array of m values, same shape as ``voltage``. Points where |J_rec| <
+        j_floor or where the numeric derivative is non-finite are set to NaN so
+        plots leave gaps there rather than drawing spurious spikes.
     """
     vt = thermal_voltage(temp_k)
-    j = np.abs(current)
+    j = np.abs(j_ph - current)
     mask = j > j_floor
 
     # ln|J| is only evaluated where J is safely above the floor; elsewhere it is
