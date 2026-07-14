@@ -19,6 +19,11 @@ def iv_curve_figure(
     title: str = "JV Curve",
     dark_voltage: np.ndarray | None = None,
     dark_current: np.ndarray | None = None,
+    measured_voltage: np.ndarray | None = None,
+    measured_current: np.ndarray | None = None,
+    measured_label: str = "Measured data",
+    fitted_voltage: np.ndarray | None = None,
+    fitted_current: np.ndarray | None = None,
 ) -> go.Figure:
     """Build a Plotly figure for a JV curve, with an optional power-density
     overlay on a secondary axis and key metrics marked (Jsc, Voc, MPP).
@@ -28,6 +33,10 @@ def iv_curve_figure(
     figure. Colour encodes the quantity (blue = current, orange = power) while
     line style encodes light (solid) vs dark (dashed).
 
+    Imported measurements and a fitted curve can also be overlaid: measurements
+    are drawn as green markers and the fit as a solid red line, both on the
+    primary current axis (converted to mA/cm²).
+
     Args:
         voltage: voltage points (V)
         current: current density (A/cm^2)
@@ -36,8 +45,17 @@ def iv_curve_figure(
         dark_voltage: optional dark-curve voltage points (V)
         dark_current: optional dark current density (A/cm^2); when given, drawn
             as a dashed blue overlay on the primary axis
+        measured_voltage: optional imported-measurement voltage points (V)
+        measured_current: optional imported-measurement current density (A/cm^2),
+            drawn as markers on the primary axis
+        measured_label: legend label for the measured markers
+        fitted_voltage: optional fitted-curve voltage points (V)
+        fitted_current: optional fitted current density (A/cm^2), drawn as a
+            solid red line on the primary axis
     """
     has_dark = dark_current is not None
+    has_measured = measured_current is not None
+    has_fit = fitted_current is not None
     # Convert to display units: mA/cm^2 for current density, mW/cm^2 for power.
     current_ma = current * 1e3
     power_mw = voltage * current * 1e3
@@ -59,6 +77,19 @@ def iv_curve_figure(
         line=dict(color="#ff7f0e", width=2, dash="dot"),
         yaxis="y2",
     ))
+
+    if has_measured:
+        fig.add_trace(go.Scatter(
+            x=measured_voltage, y=measured_current * 1e3, mode="markers",
+            name=measured_label,
+            marker=dict(color="#2ca02c", size=6, symbol="circle-open"),
+        ))
+    if has_fit:
+        fig.add_trace(go.Scatter(
+            x=fitted_voltage, y=fitted_current * 1e3, mode="lines",
+            name="Fitted curve (mA/cm²)",
+            line=dict(color="#d62728", width=2),
+        ))
 
     if metrics:
         fig.add_trace(go.Scatter(
@@ -141,6 +172,43 @@ def ideality_factor_figure(
         title=title,
         xaxis_title="Voltage (V)",
         yaxis_title="Local ideality factor m",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        margin=dict(l=40, r=40, t=60, b=40),
+    )
+    return fig
+
+
+def residual_figure(
+    voltage: np.ndarray,
+    residual: np.ndarray,
+    residual_space: str = "linear",
+    title: str = "Fit residuals",
+) -> go.Figure:
+    """Build a residual plot for a fit: (fit - measured) vs voltage.
+
+    The residual passed in is always the *linear* current residual (A/cm^2). When
+    the fit used log space, that is noted in the axis label but the plotted
+    quantity stays in mA/cm^2 so it reads in the same units as the JV plot.
+
+    Args:
+        voltage: measured voltage points (V)
+        residual: linear current residual (A/cm^2), model minus measured
+        residual_space: "linear" or "log"; only affects the axis annotation
+        title: figure title
+    """
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=voltage, y=residual * 1e3, mode="markers",
+        name="Residual", marker=dict(color="#d62728", size=6),
+    ))
+    # Zero reference line so systematic bias is easy to see.
+    fig.add_hline(y=0, line=dict(color="gray", width=1, dash="dash"))
+
+    space_note = " (fit minimised in log space)" if residual_space == "log" else ""
+    fig.update_layout(
+        title=title,
+        xaxis_title="Voltage (V)",
+        yaxis_title=f"Residual (mA/cm²){space_note}",
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
         margin=dict(l=40, r=40, t=60, b=40),
     )

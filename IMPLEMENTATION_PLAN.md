@@ -28,9 +28,9 @@ Use pvlib under the hood (https://pvlib-python.readthedocs.io/en/stable/index.ht
 **Goal:** fit the single-diode model to real data such that fitted parameters remain physically meaningful.
 
 **Tasks:**
-- [ ] Build data loader for custom/measured IV data, mirroring PV Lighthouse's "add custom data" workflow
-- [ ] Implement a baseline fit using an off-the-shelf optimiser (e.g. `scipy.optimize`)
-- [ ] Add parameter bounds for all fitted variables
+- [x] Build data loader for custom/measured IV data, mirroring PV Lighthouse's "add custom data" workflow
+- [x] Implement a baseline fit using an off-the-shelf optimiser (`scipy.optimize.least_squares`, bounded)
+- [x] Add parameter bounds for all fitted variables
 - [ ] Identify which parameter subset matters most physically (discuss with Dong/Mikael if unclear)
 - [ ] Design a cost function that heavily penalises unphysical parameter regions 
 - [ ] Test for parameter degeneracy: refit from multiple starting points, check whether solutions converge to physically consistent regions
