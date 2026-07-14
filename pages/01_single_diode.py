@@ -96,15 +96,11 @@ def saturation_current_input(
         if fit_key not in st.session_state:
             st.session_state[fit_key] = True
         with col_fit:
-            st.checkbox("Fit", key=fit_key, help=FIT_TOOLTIP, disabled=fit_disabled)
+            st.checkbox("Fit", key=fit_key, disabled=fit_disabled)
 
     return st.session_state["j_0_num"]
 
 
-# Tooltip shown on every per-parameter "Fit" checkbox.
-FIT_TOOLTIP = (
-    "Tick a parameter to fit it; unticked parameters stay fixed at the value shown."
-)
 
 
 @st.dialog("Custom Data")
@@ -238,7 +234,7 @@ with col_controls:
     )
 
     # --- Custom fitting: load data (modal) + fit controls ------------------
-    st.subheader("Custom Fitting")
+    st.header("Custom Fitting")
     if st.button("Load data", key="fit_open_dialog"):
         data_load_dialog()
 
@@ -284,6 +280,8 @@ with col_controls:
         "guess when the parameter is ticked to fit, or held constant when unticked."
     )
 
+    st.caption("Once a custom dataset has been loaded, tick a parameter to fit it; unticked parameters stay fixed at the value shown.")
+
     # J_ph is a light-only parameter, so its Fit checkbox is disabled for dark data.
     dark_loaded = dataset is not None and dataset.kind == "dark"
 
@@ -300,7 +298,6 @@ with col_controls:
             "the short-circuit current density of the light JV curve."
         ),
         fit_key="fit_free_j_ph",
-        fit_help=FIT_TOOLTIP,
         fit_disabled=dark_loaded,
     )
     j_0 = saturation_current_input(fit_key="fit_free_j_0")
@@ -317,7 +314,6 @@ with col_controls:
             "more ideal diode; larger values indicate stronger recombination."
         ),
         fit_key="fit_free_n",
-        fit_help=FIT_TOOLTIP,
     )
     r_s = slider_with_number(
         "Series resistance R_s (Ω·cm²)",
@@ -332,7 +328,6 @@ with col_controls:
             "material, and wiring. Larger values reduce current at high voltage."
         ),
         fit_key="fit_free_r_s",
-        fit_help=FIT_TOOLTIP,
     )
     r_sh = slider_with_number(
         "Shunt resistance R_sh (Ω·cm²)",
@@ -347,7 +342,6 @@ with col_controls:
             "generally mean less leakage near short circuit."
         ),
         fit_key="fit_free_r_sh",
-        fit_help=FIT_TOOLTIP,
     )
 
     st.header("Operating conditions")
