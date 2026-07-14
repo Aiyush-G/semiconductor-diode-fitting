@@ -217,7 +217,7 @@ with col_results:
     v_dark, i_dark = dark_curve if dark_curve is not None else (None, None)
 
     fig = iv_curve_figure(
-        voltage, current, metrics=metrics, title="Light JV Curve",
+        voltage, current, metrics=metrics, title="JV Curve",
         dark_voltage=v_dark, dark_current=i_dark,
     )
     st.plotly_chart(fig, width="stretch")
