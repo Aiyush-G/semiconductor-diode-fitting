@@ -25,10 +25,16 @@ def slider_with_number(
 ):
     """Render a slider and a number_input side-by-side that stay in sync.
 
+    The number box is unbounded above ``max_value``: typing a larger value is
+    allowed and the slider's upper bound expands to accommodate it, snapping back
+    once the value drops within the base range. ``min_value`` remains a hard floor.
+
     Args:
         label: control label (shown on the slider; the number box mirrors it).
-        min_value, max_value, value, step: shared bounds/default/step for both
-            widgets. Types must be consistent (all ``float`` or all ``int``).
+        min_value, max_value, value, step: base bounds/default/step. ``min_value``
+            is a hard floor on both widgets; ``max_value`` is the initial slider
+            top but the number box may exceed it (see above). Types must be
+            consistent (all ``float`` or all ``int``).
         key: base session_state key; the widgets use ``{key}_sld`` / ``{key}_num``.
         help: tooltip shown on the slider label.
         fmt: optional printf-style format for the number box (e.g. "%.2f").
@@ -51,12 +57,20 @@ def slider_with_number(
     def _sync_from_number() -> None:
         st.session_state[sld_key] = st.session_state[num_key]
 
+    # The number box is unbounded above so a user can type past the base range;
+    # the slider's bounds then expand to include the current value so the two
+    # widgets stay consistent (the slider handle would otherwise sit pinned at
+    # its old maximum while the box shows a larger number).
+    current = st.session_state[num_key]
+    slider_min = min(min_value, current)
+    slider_max = max(max_value, current)
+
     col_slider, col_number = st.columns([3, 1], gap="small")
     with col_slider:
         st.slider(
             label,
-            min_value=min_value,
-            max_value=max_value,
+            min_value=slider_min,
+            max_value=slider_max,
             step=step,
             key=sld_key,
             help=help,
@@ -65,7 +79,6 @@ def slider_with_number(
     with col_number:
         number_kwargs = dict(
             min_value=min_value,
-            max_value=max_value,
             step=step,
             key=num_key,
             on_change=_sync_from_number,
