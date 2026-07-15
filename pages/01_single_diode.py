@@ -190,7 +190,7 @@ def fit_results_dialog() -> None:
     status = "converged" if fit_result.success else "did not converge"
     st.caption(
         f"Fitted {', '.join(fit_result.free_names)} to '{imported_dataset.label}' "
-        f"({fit_result.n_points} points, {fit_result.residual_space} residuals) — {status}."
+        f"({fit_result.n_points} points, {fit_result.residual_space} residuals): {status}."
     )
 
     p = fit_result.params
@@ -219,7 +219,7 @@ def fit_results_dialog() -> None:
         width="stretch",
     )
     st.caption(
-        "Residual = fitted − measured current density at each point. A "
+        "Residual = fitted - measured current density at each point. A "
         "structureless scatter about zero indicates a good fit; systematic "
         "curvature points to a model/parameter mismatch."
     )
@@ -648,9 +648,7 @@ with col_results:
     m_fig.update_xaxes(range=[v_start, v_end])
     st.plotly_chart(m_fig, width="stretch")
     st.caption(
-        "Local ideality factor m(V) = (1/Vt)·dV/d(ln|J|). It sits near the diode "
-        "ideality factor n in the exponential region and departs where series/"
-        "shunt resistance dominate; gaps appear near the J→0 crossing (Voc)."
+        ""
     )
 
     # --- Fit summary and residuals (shown in a modal) ----------------------
