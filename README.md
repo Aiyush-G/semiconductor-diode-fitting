@@ -33,12 +33,12 @@ Build and validate the base physics: plot IV/JV curves (light and dark) for a si
 - Standard temperature dependence (Faiman / PVsyst)
 - **Milestone:** reproduce a known reference IV curve (e.g. from PV Lighthouse) to within acceptable tolerance
 
-### Phase B - Fitting functionality
+### Phase B - Fitting functionality (COMPLETED)
 Add the ability to fit the single-diode model to real/custom data.
 - Custom data import (PV Lighthouse-style)
 - Baseline fit using an off-the-shelf optimiser
 - Parameter bounding + high-cost penalties for unphysical values
-- **Milestone:** fit a real dataset and get parameters that are both numerically good and physically sane; compare against Dong's fitting algorithm once available
+
 
 #### Review 1 - Documentation of Phase A and Phase B / Testing
 - Phase A and B code review

@@ -51,7 +51,7 @@ def slider_with_number(
         fit_key: if given, render a "Fit" checkbox with this session_state key in a
             third column. The caller reads the state from ``st.session_state[fit_key]``.
         fit_help: tooltip for the Fit checkbox.
-        fit_disabled: render the Fit checkbox disabled (e.g. J_ph on dark data).
+        fit_disabled: render the Fit checkbox disabled (e.g. Jₚₕ on dark data).
 
     Returns:
         The current value (kept identical across both widgets).

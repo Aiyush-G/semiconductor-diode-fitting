@@ -74,7 +74,7 @@ def saturation_current_input(
         col_select, col_number = st.columns([3, 1], gap="small")
     with col_select:
         st.select_slider(
-            "Saturation current density J_0 (A/cm²)",
+            "Saturation current density J₀ (A/cm²)",
             options=SATURATION_CURRENT_OPTIONS,
             format_func=lambda x: f"{x:.0e}",
             key="j_0_sel",
@@ -83,7 +83,7 @@ def saturation_current_input(
         )
     with col_number:
         st.number_input(
-            "Saturation current density J_0 (A/cm²)",
+            "Saturation current density J₀ (A/cm²)",
             min_value=J0_MIN,
             max_value=J0_MAX,
             step=1e-14,
@@ -113,7 +113,7 @@ def data_load_dialog() -> None:
     """
     st.caption(
         "Load measured J-V data to overlay on the graph and fit. Light data can "
-        "fit J_L, J_0, n, R_s, R_sh; dark data fits J_0, n, R_s, R_sh (no photocurrent)."
+        "fit Jₚₕ, J₀, n, Rₛ, Rₛₕ; dark data fits J₀, n, Rₛ, Rₛₕ (no photocurrent)."
     )
 
     example_choice = st.selectbox(
@@ -189,11 +189,11 @@ def fit_results_dialog() -> None:
 
     p = fit_result.params
     pcol1, pcol2, pcol3, pcol4, pcol5 = st.columns(5)
-    pcol1.metric("J_L (mA/cm²)", f"{p.j_ph * 1e3:.3f}")
-    pcol2.metric("J_0 (A/cm²)", f"{p.j_0:.3e}")
+    pcol1.metric("Jₚₕ (mA/cm²)", f"{p.j_ph * 1e3:.3f}")
+    pcol2.metric("J₀ (A/cm²)", f"{p.j_0:.3e}")
     pcol3.metric("n", f"{p.n:.3f}")
-    pcol4.metric("R_s (Ω·cm²)", f"{p.r_s:.3f}")
-    pcol5.metric("R_sh (Ω·cm²)", f"{p.r_sh:.4g}")
+    pcol4.metric("Rₛ (Ω·cm²)", f"{p.r_s:.3f}")
+    pcol5.metric("Rₛₕ (Ω·cm²)", f"{p.r_sh:.4g}")
 
     mcol1, mcol2, mcol3, mcol4 = st.columns(4)
     mcol1.metric("RMSE (mA/cm²)", f"{fit_result.rmse * 1e3:.4f}")
@@ -332,9 +332,11 @@ with col_controls:
 
         # J_ph is a light-only parameter, so its Fit checkbox is disabled for dark data.
         dark_loaded = dataset is not None and dataset.kind == "dark"
+        # Fit checkboxes are only meaningful once a dataset is loaded to fit against.
+        no_data = dataset is None
 
         j_ph_ma = slider_with_number(
-            "Photo-current density J_ph (mA/cm²)",
+            "Photo-current density Jₚₕ (mA/cm²)",
             min_value=0.0,
             max_value=50.0,
             value=40.0,
@@ -346,9 +348,9 @@ with col_controls:
                 "the short-circuit current density of the light JV curve."
             ),
             fit_key="fit_free_j_ph",
-            fit_disabled=dark_loaded,
+            fit_disabled=no_data or dark_loaded,
         )
-        j_0 = saturation_current_input(fit_key="fit_free_j_0")
+        j_0 = saturation_current_input(fit_key="fit_free_j_0", fit_disabled=no_data)
         n = slider_with_number(
             "Ideality factor n",
             min_value=1.0,
@@ -362,9 +364,10 @@ with col_controls:
                 "more ideal diode; larger values indicate stronger recombination."
             ),
             fit_key="fit_free_n",
+            fit_disabled=no_data,
         )
         r_s = slider_with_number(
-            "Series resistance R_s (Ω·cm²)",
+            "Series resistance Rₛ (Ω·cm²)",
             min_value=0.0,
             max_value=5.0,
             value=0.5,
@@ -376,9 +379,10 @@ with col_controls:
                 "material, and wiring. Larger values reduce current at high voltage."
             ),
             fit_key="fit_free_r_s",
+            fit_disabled=no_data,
         )
         r_sh = slider_with_number(
-            "Shunt resistance R_sh (Ω·cm²)",
+            "Shunt resistance Rₛₕ (Ω·cm²)",
             min_value=100.0,
             max_value=100000.0,
             value=1000.0,
@@ -390,6 +394,7 @@ with col_controls:
                 "generally mean less leakage near short circuit."
             ),
             fit_key="fit_free_r_sh",
+            fit_disabled=no_data,
         )
 
     with st.expander("Operating conditions", expanded=True):
