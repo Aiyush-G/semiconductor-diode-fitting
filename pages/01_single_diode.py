@@ -291,11 +291,10 @@ if st.button("Details of Implementation", key="open_implementation_details"):
 # Introduction
 with st.expander("Introduction", expanded=False):
     st.markdown(
-    "Explore the single-diode solar-cell model or fit it to example or measured data.\n\n"
     "### Current implementation\n"
     "- **Adjust circuit parameters:** photocurrent, saturation current, ideality "
     "factor, series resistance, and shunt resistance at the 25 °C reference condition.\n"
-    "- **Change temperature:** apply a PVsyst-style temperature correction to "
+    "- **Change temperature:** apply a PVsyst implemented temperature correction to "
     "photocurrent and saturation current while keeping ideality factor and resistances fixed.\n"
     "- **Fit measured data:** load example or custom light or dark J-V data and "
     "fit any subset of parameters using least squares.\n"

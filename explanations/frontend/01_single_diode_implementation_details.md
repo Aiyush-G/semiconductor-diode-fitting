@@ -121,7 +121,7 @@ $$
 
 ### Series Resistance
 
-> Series resistance in a solar cell has three causes: firstly, the movement of current through the emitter and base of the solar cell; secondly, the contact resistance between the metal contact and the silicon; and finally the resistance of the top and rear metal contacts.
+Series resistance in a solar cell has three causes: firstly, the movement of current through the emitter and base of the solar cell; secondly, the contact resistance between the metal contact and the silicon; and finally the resistance of the top and rear metal contacts.
 
 #### Reference:
 ```python
@@ -139,13 +139,13 @@ r_sh: float  # Shunt resistance, Ohm.cm^2 - models unwanted leakage paths
 ```
 
 
-### Effect of Temperature
+## Effect of Temperature
 
 *Implemented in `src/models/temperature.py`.*
 
 Temperature affects a solar cell in two distinct ways: it shifts the photo-current very slightly, and it shifts the saturation current density substantially. The model treats these as two independent corrections applied to a set of *reference* parameters (valid at `REFERENCE_TEMP_K = 298.15 K`, i.e. 25°C), while holding `n`, `R_s` and `R_sh` fixed. 
 
-#### `J_0` is  temperature-sensitive
+### `J_0` is  temperature-sensitive
 
 The reverse saturation current density of a pn junction is governed by the diffusion of minority carriers, and is proportional to the square of the intrinsic carrier concentration $n_i^2$:
 
@@ -163,7 +163,7 @@ $$
 
 
 
-#### `J_ph` 
+### `J_ph` 
 
 The photo-current density depends on how many above-bandgap photons are absorbed and collected, which is a comparatively weak function of temperature. 
 
@@ -173,7 +173,7 @@ $$
 
 For [crystalline silicon](https://www.pvsyst.com/help-pvsyst7/pvmodule_model.htm), $\alpha_{isc} \approx 0.0005\ \mathrm{K^{-1}}$ (+0.05 %/K).
 
-#### Reference
+### Reference
 
 The temperature coefficients and bandgap are grouped into a small config object:
 
