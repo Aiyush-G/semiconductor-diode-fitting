@@ -269,7 +269,7 @@ st.title("Single Diode Model")
 with st.expander("Introduction", expanded=False):
     st.markdown(
         "Explore the single-diode equivalent circuit for a solar cell, or fit it "
-        "to measured data - interface includes example data. Current implementation:\n"
+            "to measured data - interface includes example data. \n \n ### Current implementation\n"
         "- **Adjust the equivalent circuit**,  sliders and number boxes for "
         "photocurrent (Jₚₕ), saturation current (J₀), ideality factor (n), series "
         "resistance (Rₛ), and shunt resistance (Rₛₕ), area-normalised at the "
