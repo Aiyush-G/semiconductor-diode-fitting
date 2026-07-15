@@ -1,6 +1,10 @@
 # Diode Fitting
 
-A  web application for plotting, fitting, and analysing IV (current-voltage) curves of solar cells -  from single-diode models through to tandem cell configurations -  as part of the wider **TacOSPV** project at Interface Materials, Oxford.
+A  web application for plotting, fitting, and analysing IV (current-voltage) curves of solar cells ( single-diode models through to tandem cell configurations)  part of the wider **TacOSPV** project at Interface Materials, Oxford.
+
+![Repository screenshot](assets/01_repoScreenshot.jpeg)
+*V0.56*
+
 
 ## Local setup
 
