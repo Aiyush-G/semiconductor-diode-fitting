@@ -265,10 +265,30 @@ st.markdown(
 
 st.title("Single Diode Model")
 
-st.markdown(
-    "Explore how equivalent-circuit parameters change a solar-cell JV "
-    "(current-density) curve under light and optional dark conditions."
-)
+# Introduction
+with st.expander("Introduction", expanded=False):
+    st.markdown(
+        "Explore the single-diode equivalent circuit for a solar cell, or fit it "
+        "to measured data - interface includes example data. Current implementation:\n"
+        "- **Adjust the equivalent circuit**,  sliders and number boxes for "
+        "photocurrent (Jₚₕ), saturation current (J₀), ideality factor (n), series "
+        "resistance (Rₛ), and shunt resistance (Rₛₕ), area-normalised at the "
+        "25 °C reference condition.\n"
+        "- **Change temperature**,  a [PVsyst-style adjustment]"
+        "(https://www.pvsyst.com/help/physical-models-used/pv-module-standard-one-diode-model/index.html) "
+        "scales $J_{ph}$ linearly with a temperature coefficient, "
+        "$J_{ph}(T) = J_{ph,ref}\\,[1 + \\alpha_{isc}(T - T_{ref})]$, and scales "
+        "$J_0$ via the De Soto/Shockley activation form, "
+        "$J_0(T) = J_{0,ref}\\left(\\dfrac{T}{T_{ref}}\\right)^{3} "
+        "\\exp\\!\\left[\\dfrac{E_g}{k_B}\\left(\\dfrac{1}{T_{ref}} - \\dfrac{1}{T}\\right)\\right]$, "
+        "while n, Rₛ, and Rₛₕ are held fixed at their reference values.\n"
+        "- **Load and fit real data**,  import an example or your own measured "
+        "light or dark J-V dataset and fit any subset of the parameters by "
+        "least squares.\n"
+        "- **Inspect diagnostic views**,  the linear JV curve (with MPP marker "
+        "and power axis), semi-log JV, local ideality factor m(V), and fit "
+        "residuals, with optional dark-curve and measured/fitted overlays.\n"
+    )
 
 # Keep inputs and outputs in separate columns so the interaction flow is
 # predictable: set reference values first, then read the computed result.
@@ -282,6 +302,10 @@ with col_controls:
 
     # --- Custom fitting: load data (modal) + fit controls ------------------
     with st.expander("Custom Fitting", expanded=True):
+
+        st.markdown(
+    "Upload dataset and adjust 'fit' of reference parameters before fitting the dataset."
+        )
         # Place Load, Fit and Clear on a single row for compact controls.
         col_load_btn, col_fit_btn, col_clear_btn = st.columns([1, 1, 1])
 
