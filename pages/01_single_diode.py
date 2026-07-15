@@ -20,6 +20,7 @@ from src.models.single_diode import (
 )
 from src.models.temperature import TemperatureCoefficients, adjust_params_for_temperature
 from ui.inputs import slider_with_number
+from ui.markdown_sections import parse_sections, render_sections
 from ui.plotting import (
     ideality_factor_figure,
     iv_curve_figure,
@@ -29,6 +30,10 @@ from ui.plotting import (
 
 
 REFERENCE_TEMP_K = 298.15
+IMPLEMENTATION_DETAILS_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "explanations" / "frontend" / "01_single_diode_implementation_details.md"
+)
 # Saturation current density J_0 options in A/cm^2 (PV Lighthouse convention).
 SATURATION_CURRENT_OPTIONS = [10 ** p for p in range(-15, -5)]
 # Bounds for the free-form J_0 number box (span the decade selector, with a
@@ -222,12 +227,17 @@ def fit_results_dialog() -> None:
 
 @st.dialog("Details of Implementation", width="large")
 def implementation_details_dialog() -> None:
-    """Modal rendering the single-diode implementation notes markdown file."""
-    details_path = (
-        Path(__file__).resolve().parent.parent
-        / "explanations" / "frontend" / "01_single_diode_implementation_details.md"
+    """Modal rendering the implementation notes as collapsible sections.
+
+    Sections are parsed from the markdown headings, so new headings appear in the
+    modal without a change here.
+    """
+    preamble, sections = parse_sections(
+        IMPLEMENTATION_DETAILS_PATH.read_text(encoding="utf-8")
     )
-    st.markdown(details_path.read_text(encoding="utf-8"))
+    if preamble:
+        st.markdown(preamble)
+    render_sections(sections)
 
 
 # Page metadata and opening copy are kept concise so keyboard and screen-reader
@@ -281,27 +291,17 @@ if st.button("Details of Implementation", key="open_implementation_details"):
 # Introduction
 with st.expander("Introduction", expanded=False):
     st.markdown(
-        "Explore the single-diode equivalent circuit for a solar cell, or fit it "
-            "to measured data - interface includes example data. \n \n ### Current implementation\n"
-        "- **Adjust the equivalent circuit**,  sliders and number boxes for "
-        "photocurrent (Jₚₕ), saturation current (J₀), ideality factor (n), series "
-        "resistance (Rₛ), and shunt resistance (Rₛₕ), area-normalised at the "
-        "25 °C reference condition.\n"
-        "- **Change temperature**,  a [PVsyst-style adjustment]"
-        "(https://www.pvsyst.com/help/physical-models-used/pv-module-standard-one-diode-model/index.html) "
-        "scales $J_{ph}$ linearly with a temperature coefficient, "
-        "$J_{ph}(T) = J_{ph,ref}\\,[1 + \\alpha_{isc}(T - T_{ref})]$, and scales "
-        "$J_0$ via the De Soto/Shockley activation form, "
-        "$J_0(T) = J_{0,ref}\\left(\\dfrac{T}{T_{ref}}\\right)^{3} "
-        "\\exp\\!\\left[\\dfrac{E_g}{k_B}\\left(\\dfrac{1}{T_{ref}} - \\dfrac{1}{T}\\right)\\right]$, "
-        "while n, Rₛ, and Rₛₕ are held fixed at their reference values.\n"
-        "- **Load and fit real data**,  import an example or your own measured "
-        "light or dark J-V dataset and fit any subset of the parameters by "
-        "least squares.\n"
-        "- **Inspect diagnostic views**,  the linear JV curve (with MPP marker "
-        "and power axis), semi-log JV, local ideality factor m(V), and fit "
-        "residuals, with optional dark-curve and measured/fitted overlays.\n"
-    )
+    "Explore the single-diode solar-cell model or fit it to example or measured data.\n\n"
+    "### Current implementation\n"
+    "- **Adjust circuit parameters:** photocurrent, saturation current, ideality "
+    "factor, series resistance, and shunt resistance at the 25 °C reference condition.\n"
+    "- **Change temperature:** apply a PVsyst-style temperature correction to "
+    "photocurrent and saturation current while keeping ideality factor and resistances fixed.\n"
+    "- **Fit measured data:** load example or custom light or dark J-V data and "
+    "fit any subset of parameters using least squares.\n"
+    "- **Inspect diagnostics:** view linear and semi-log J-V curves, maximum power "
+    "point, local ideality factor, residuals, and measured-versus-fitted overlays."
+)
 
 # Keep inputs and outputs in separate columns so the interaction flow is
 # predictable: set reference values first, then read the computed result.
