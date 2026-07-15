@@ -328,7 +328,7 @@ with col_controls:
         dataset = st.session_state.get("imported_dataset")
         if dataset is not None:
             st.caption(
-                f"Loaded: {dataset.label} — {dataset.kind}, {dataset.voltage.size} points"
+                f"Loaded: {dataset.label}:  {dataset.kind}, {dataset.voltage.size} points"
             )
 
         # Fit / Clear sit side by side on the same row and are only clickable once data is loaded.
