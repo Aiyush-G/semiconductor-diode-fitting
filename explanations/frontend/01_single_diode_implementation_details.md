@@ -217,7 +217,9 @@ return DiodeParams(
 
 *Implemented in `src/models/fitting.py` (`fit_diode`).*
 
-Given measured J-V data, find the five equivalent-circuit parameters that best reproduce the observed curve. The difficulty is that the single diode equation is nonlinear and implicit, several parameters can compensate for one another, and a numerically excellent fit may not correspond to a unique or physically meaningful solution.
+Given measured J-V data, find the five equivalent-circuit parameters that best reproduce the observed curve. 
+
+The difficulty is that the single diode equation is nonlinear and implicit, several parameters can compensate for one another, and a numerically excellent fit may not correspond to a unique or physically meaningful solution.
 
 The forward model is the Lambert W solver above; fitting wraps it in a residual and hands it to SciPy's bounded nonlinear least-squares:
 
@@ -233,13 +235,11 @@ result = least_squares(
 )
 ```
 
-`method="trf"` is trust-region reflective (it respects the bounds); `x_scale="jac"` rescales the parameters by the Jacobian, which matters because the five parameters differ by many orders of magnitude. The Jacobian itself is estimated by finite differences — no analytical derivative is supplied.
-
 The objective is the plain unweighted sum of squares of the residual vector. There is no per-point weighting anywhere; the only control over which points dominate the fit is the choice of residual space (see below).
 
 #### Free and fixed parameters
 
-The user chooses which parameters are fitted. Fixed parameters are copied verbatim into every trial `DiodeParams`, so they remain exactly unchanged.
+The user chooses which parameters are fitted. Fixed parameters are copied into every trial `DiodeParams`.
 
 ```python
 @dataclass(frozen=True)
@@ -252,9 +252,7 @@ class ParamSpec:
     log: bool
 ```
 
-For dark data, `default_specs()` structurally injects `j_ph` as fixed at 0 and discards it from the free set — a photocurrent term is never fitted to dark data, even if the UI requests it.
-
-`j_0` and `r_sh` are fitted in log10 space, since both span many decades and a linear step would be meaningless at the small end. `j_ph`, `n` and `r_s` are fitted linearly — `r_s` can legitimately be ~0, where the forward model is continuous, so a log floor would only add a wall.
+For dark data, `j_ph` as fixed at 0 and discards it from the free set - a photocurrent term is not fitted to dark data.
 
 #### Bounds and initial guess
 
@@ -268,51 +266,34 @@ DEFAULT_BOUNDS: dict[str, tuple[float, float]] = {
 }
 ```
 
-In the app the starting guess is **not** a fixed default — it is whatever the reference-parameter sliders currently read. Where the sliders sit therefore changes where the fit lands. `pack()` clips the starting vector onto the bounds box, so a value typed past a bound nudges the seed rather than making the optimiser reject it outright.
+Starting guess is **not** a fixed default but it is whatever the reference-parameter sliders currently read.
 
-#### Temperature
-
-Temperature is never fitted. The measurement temperature from the cell-temperature control is passed straight in as `params.temp_k`. Note that the reference → target correction described in *Effect of Temperature* above applies to the plotted model curve, **not** to the fit: at temperatures other than 25 °C, the fitted `j_0` and `j_ph` are at-temperature values, not reference values, and are not directly comparable to literature figures quoted at STC.
 
 #### Reported metrics
 
-`rmse`, `r_squared` and `max_abs_residual` are always reported in linear current units (A/cm²), so they stay comparable across fits. `rmse_log` is additionally reported when a log residual was used, because a linear R² on dark data reads deceptively close to 1.
-
-A failed forward evaluation (overflow, NaN, inf) returns a large finite penalty vector of the correct length rather than crashing the optimiser. `fit_diode` never raises: a failed fit is reported through `success=False` and the optimiser's own message.
+`rmse`, `r_squared` and `max_abs_residual` are always reported in linear current units (A/cm²), so they stay comparable across fits. `rmse_log` is additionally reported when a log residual was used, because a linear R² on dark data reads close to 1.
 
 ### Limitations
 
 #### Model limitations
 
-**Parameter degeneracy is the central problem.** Many different parameter combinations fit the same data equally well, and most of them are physically meaningless. This is not a hypothetical — the synthetic-recovery test in `tests/models/test_fitting.py` can only recover known-true parameters by fixing the resistances first:
+**Parameter degeneracy is the central problem.** Many different parameter combinations fit the same data equally well, and most of them are physically meaningless.
 
-```python
-# Fix the poorly-identified resistances at truth; fit the diode terms from a
-# perturbed start. (Fitting all five at once is genuinely degenerate.)
-```
 
-Two trade-offs drive this, and both are visible in the governing equation. First, `j_0` and `n` sit in the same exponential term $J_0(\exp((V + JR_s)/nV_t) - 1)$: raising `n` flattens the exponential, and a compensating rise in `j_0` restores almost the same curve over a limited voltage range. Second, at low forward bias on light data the diode term is negligible and the equation collapses to $J \approx J_{ph} - V/R_{sh}$, so `j_ph` and `r_sh` are near-collinear — an offset in one is absorbed by a slope change in the other.
-
-**Different regions of the curve constrain different parameters.** `r_sh` is set by the low-voltage slope near $J_{sc}$, `n` and `j_0` by the mid-bias exponential region, and `r_s` by the high-injection roll-off near and above $V_{oc}$. If the measured data does not span a region, the corresponding parameter is unidentifiable no matter how good the optimiser is.
+**Different regions of the curve constrain different parameters.** `r_sh` is set by the low-voltage slope near $J_{sc}$, `n` and `j_0` by the mid-bias exponential region, and `r_s` by the high-injection roll-off near and above $V_{oc}$. 
 
 ![Dark IV curve and local ideality factor](https://www.pveducation.org/sites/default/files/PVCDROM/Characterisation/Images/LOCAL.gif)
 
-*Figure: a measured dark IV curve (left) and the local ideality factor extracted from it (right). Read the shape, not the three traces — they are an edge-recombination study and the distinction is incidental here. The point is that $m$ is nowhere near constant: it swings from ~1.5 at low bias to above 4 at mid bias before collapsing as series resistance takes over near 0.6 V.*
+*Figure: a measured dark IV curve (left) and the local ideality factor extracted from it (right). $m$ is not constant: it swings from 1.5 at low bias to above 4 at mid bias. Thus having n as a constant is also an assumption*
 
 > Source: https://www.pveducation.org/pvcdrom/characterisation/measuring-ideality-factor
 
-**A single global `n` is therefore a compromise.** The model fits one ideality factor, but as the figure shows, a real device's local ideality factor $m(V)$ varies strongly across the measured range. The fitted `n` is a weighted average over whatever voltages were measured, not a physical constant of the device.
 
 #### Implementation limitations
 
-These are properties of the current code rather than of the physics.
+- **No multi-start or global search.** One local `trf` run from one seed. A different slider position can converge somewhere else entirely.
+- **No penalty for unphysical regions.** Only hard box bounds constrain the fit.
 
-- **No multi-start or global search.** One local `trf` run from one seed. A different slider position can converge somewhere else entirely, and nothing checks whether repeated starts agree.
-- **No penalty for unphysical regions.** Only hard box bounds constrain the fit. A solution parked exactly on a bound is still reported as `success=True` with no warning. The fit bounds are also *wider* than the sliders can express (`n` is bounded at `[0.8, 5.0]` but the slider stops at `[1.0, 2.0]`), so a fit can return a value the UI cannot represent.
-- **No uncertainty estimates.** The optimiser's Jacobian is discarded, so there is no covariance matrix, no parameter correlations and no confidence intervals. Degeneracy is consequently invisible to the user: the app cannot currently tell you that a good-looking fit is one of many.
-- **`CURRENT_FLOOR = 1e-9`** flattens log residuals below 1 nA/cm², so very low-current dark points carry no information.
-- **`r_squared` is NaN** when the measured data has zero variance.
-- Robust losses (`soft_l1`, `huber`) are supported by `fit_diode` but not exposed in the UI. There is no outlier handling and no per-point weighting.
 
 ### Residual Space
 
@@ -336,18 +317,3 @@ def _log_residual(model_current: np.ndarray, measured: np.ndarray) -> np.ndarray
     meas_mag = np.maximum(np.abs(measured), CURRENT_FLOOR)
     return np.log10(model_mag) - np.log10(meas_mag)
 ```
-
-A linear residual measures **absolute** error, so points at the mA/cm² scale dominate and µA/cm² points contribute essentially nothing. A log residual measures **fractional** error, so every decade of current counts equally.
-
-`residual_space="auto"` picks per data kind:
-
-- **Light data → linear.** A light curve crosses zero at $V_{oc}$, and $\log\lvert J\rvert$ diverges there, so a log residual is unsafe.
-- **Dark data → log.** Dark data spans roughly five decades of $\lvert J\rvert$ (the bundled example runs from ~2×10⁻⁶ to 0.25 A/cm²). A linear fit would be determined almost entirely by the handful of highest-current points and would ignore the rest of the curve.
-
-`CURRENT_FLOOR = 1e-9` exists so that $\log(0)$ never occurs. The cost is that anything below 1 nA/cm² is flattened and stops informing the fit.
-
-#### Reading the residual plot
-
-The plotted residual is **always** the linear residual $J_{\text{model}} - J_{\text{meas}}$ in mA/cm², regardless of the space the fit was minimised in; when a log fit was run, the axis label says so. This matters for interpretation: on a log-space dark fit, the residuals near $V_{oc}$ will look large, because the fit deliberately traded absolute accuracy at high current for fractional accuracy across the low-current decades. That is the log fit working as intended, not a bad fit. Judge a log fit by `rmse_log`, not by `r_squared`.
-
-
