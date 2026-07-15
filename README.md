@@ -74,7 +74,7 @@ flowchart TD
 | `pages/` | One file per page; owns layout, state, and dialogs |
 | `ui/` | Reusable figures and widgets, no physics |
 | `src/models/` | Diode equations, temperature models, fitting, data import |
-| `explanations/` | Markdown/PDF write-ups surfaced in-app via `markdown_sections` |
+| `explanations/` | Markdown/PDF write-ups surfaced in-app via `markdown_sections`, plus the Colab fitting notebook |
 | `tests/` | Pytest suite mirroring `src/` and `ui/` |
 
 ---
