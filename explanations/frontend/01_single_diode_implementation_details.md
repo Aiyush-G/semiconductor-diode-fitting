@@ -129,32 +129,75 @@ r_sh: float  # Shunt resistance, Ohm.cm^2 - models unwanted leakage paths
 *Corresponds to the `r_sh` field of `DiodeParams` (`src/models/single_diode.py`) — the `(V + J*Rs) / Rsh` leakage term in the governing equation.*
 
 ### Effect of Temperature
-Provides a scaling factor to the saturation current density as follows: 
 
+*Implemented in `src/models/temperature.py`.*
+
+Temperature affects a solar cell in two distinct ways: it shifts the photo-current very slightly, and it shifts the saturation current density substantially. The model treats these as two independent corrections applied to a set of *reference* parameters (valid at `REFERENCE_TEMP_K = 298.15 K`, i.e. 25°C), while holding `n`, `R_s` and `R_sh` fixed. 
+
+#### `J_0` is  temperature-sensitive
+
+The reverse saturation current density of a pn junction is governed by the diffusion of minority carriers, and is proportional to the square of the intrinsic carrier concentration $n_i^2$:
 
 $$
-I_0
-=
-I_{0,\mathrm{ref}}
-\left(\frac{T}{T_{\mathrm{ref}}}\right)^3
-\exp\!\left[
-\frac{qE_g}{n k_B}
-\left(
-\frac1{T_{\mathrm{ref}}}
--
-\frac1T
-\right)
-\right]
+J_0 \propto n_i^2 \propto T^3 \exp\!\left(-\frac{E_g}{k_B T}\right)
 $$
 
+$n_i^2$ carries the $\exp(-E_g/k_BT)$ Boltzmann factor because generating an electron-hole pair intrinsically requires a carrier to be thermally excited across the full bandgap $E_g$ - a much larger energy barrier than the built-in potential a photo-generated carrier has to overcome. This is why $J_0$ (and hence dark current) rises roughly exponentially with temperature, while $J_{ph}$ barely moves.
 
-As temperature increases, the thermal energy kbT gets larger meaning more electrons can successfully jump the bandgap. This follows a Boltzmann probability distribution: $\exp\!\left(-\frac{E_g}{k_BT}\right)$. 
+Writing this relationship as a ratio between the target temperature $T$ and the reference temperature $T_{ref}$ removes the (poorly known) constant of proportionality, leaving only measurable/tabulated quantities ($E_g$, $T_{ref}$, $J_{0,ref}$):
 
-A reference temperature is used instead of recalculating from scratch, this is done for 25 deg C. 
+$$
+J_0(T) = J_{0,\mathrm{ref}}\left(\frac{T}{T_{\mathrm{ref}}}\right)^{3}\exp\!\left[\frac{E_g}{k_B}\left(\frac{1}{T_{\mathrm{ref}}} - \frac1T\right)\right]
+$$
 
+Note this uses $E_g/k_B$ directly (units of kelvin), **not** divided by the ideality factor `n` — the saturation current activation energy is tied to the physical bandgap of the material, not to the empirical non-ideality of a particular junction, so `n` does not appear here. (This differs from the `n·V_t` term in the main IV equation, which scales the *voltage* dependence, not the *temperature* dependence.)
 
+#### `J_ph` 
 
+The photo-current density depends on how many above-bandgap photons are absorbed and collected, which is a comparatively weak function of temperature. Rather than modelling this from first principles, the code uses the empirical, linear temperature coefficient $\alpha_{isc}$ (fractional, in 1/K), applied directly to $J_{ph}$:
 
+$$
+J_{ph}(T) = J_{ph,\mathrm{ref}}\left[1 + \alpha_{isc}\,(T - T_{\mathrm{ref}})\right]
+$$
+
+For crystalline silicon, $\alpha_{isc} \approx 0.0005\ \mathrm{K^{-1}}$ (+0.05 %/K), which is why this correction is small compared to the $J_0$ correction over a normal operating range (e.g. ±25°C from STC).
+
+#### Code implementation
+
+The temperature coefficients and bandgap are grouped into a small config object:
+
+```python
+@dataclass(frozen=True)
+class TemperatureCoefficients:
+    alpha_isc: float = 0.0005   # 1/K, fractional Isc coefficient
+    e_g_ev: float = 1.121       # eV, silicon bandgap at Tref
+```
+
+`adjust_params_for_temperature()` takes a set of `DiodeParams` valid at `reference_temp_k`, and returns a new `DiodeParams` valid at `target_temp_k`:
+
+```python
+delta_t = target_temp_k - reference_temp_k
+
+j_ph_new = ref_params.j_ph * (1.0 + coeffs.alpha_isc * delta_t)
+
+temperature_ratio = target_temp_k / reference_temp_k
+saturation_current_exponent = (
+    coeffs.e_g_ev / BOLTZMANN_EV
+    * (1.0 / reference_temp_k - 1.0 / target_temp_k)
+)
+j_0_new = ref_params.j_0 * temperature_ratio**3 * math.exp(saturation_current_exponent)
+
+return DiodeParams(
+    j_ph=j_ph_new, j_0=j_0_new,
+    n=ref_params.n, r_s=ref_params.r_s, r_sh=ref_params.r_sh,
+    temp_k=target_temp_k,
+)
+```
+*Implemented in `src/models/temperature.py` (`TemperatureCoefficients`, `adjust_params_for_temperature`).*
+
+`BOLTZMANN_EV = 8.617333262e-5 eV/K` (imported from `single_diode.py`) is Boltzmann's constant expressed in eV/K, matching the eV units used for `e_g_ev` — this is what lets `e_g_ev / BOLTZMANN_EV` come out in kelvin, ready to multiply against the `1/T` terms directly.
+
+`n`, `r_s`, and `r_sh` are copied across unchanged: this is the Phase A simplifying assumption stated in the module docstring, not a physical claim that these are temperature-independent (see limitations below).
 
 
 ## Single Diode Fitting Overview and Limitations

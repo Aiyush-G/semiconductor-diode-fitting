@@ -1,6 +1,7 @@
 """Accessible Streamlit page for exploring the single-diode model."""
 
 import math
+from pathlib import Path
 
 import streamlit as st
 
@@ -219,6 +220,16 @@ def fit_results_dialog() -> None:
     )
 
 
+@st.dialog("Details of Implementation", width="large")
+def implementation_details_dialog() -> None:
+    """Modal rendering the single-diode implementation notes markdown file."""
+    details_path = (
+        Path(__file__).resolve().parent.parent
+        / "explanations" / "frontend" / "01_single_diode_implementation_details.md"
+    )
+    st.markdown(details_path.read_text(encoding="utf-8"))
+
+
 # Page metadata and opening copy are kept concise so keyboard and screen-reader
 # users reach the controls quickly.
 st.set_page_config(page_title="Single Diode", layout="wide")
@@ -264,6 +275,8 @@ st.markdown(
 )
 
 st.title("Single Diode Model")
+if st.button("Details of Implementation", key="open_implementation_details"):
+    implementation_details_dialog()
 
 # Introduction
 with st.expander("Introduction", expanded=False):
