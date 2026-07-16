@@ -212,6 +212,7 @@ return DiodeParams(
 
 
 ## Single Diode Fitting Overview and Limitations
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Aiyush-G/semiconductor-diode-fitting/blob/main/explanations/models/02_single_diode_fitting.ipynb) 
 
 ### Overview
 
