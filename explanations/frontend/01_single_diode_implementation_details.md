@@ -109,7 +109,7 @@ n: float  # Diode ideality factor (dimensionless, typically 1-2)
 
 ### Local Ideality factor
 
-The local ideality factor (m) defines how closely a diode’s current-voltage characteristics match a pure theoretical diode at a specific operating point. It captures the changing influence of carrier recombination mechanisms as voltage or current shifts.
+The local ideality factor (m) defines how closely a diode’s current-voltage characteristics match a pure theoretical diode at a specific operating point.
 
 $$
 m = \frac{1}{V_T}\frac{dV}{d\left(\ln J\right)} = \frac{J}{V_T}\frac{dV}{dJ}
