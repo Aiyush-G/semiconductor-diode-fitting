@@ -1,6 +1,6 @@
-"""Tests for measurement-noise models, likelihoods and MLE fitting (Chapter 4).
+"""Tests for measurement-noise models, likelihoods and MLE fitting.
 
-These cover four claims the chapter rests on:
+
 
 1. the log densities are the standard ones (checked against SciPy);
 2. a constant-scale Gaussian negative log-likelihood is an affine, increasing
@@ -8,7 +8,7 @@ These cover four claims the chapter rests on:
 3. the *choice of noise model* reproduces the *choice of residual space* -- an
    absolute-Gaussian MLE matches a linear-residual fit and a log-normal MLE
    matches a log-residual fit, moving the fitted dark J_0 by an order of
-   magnitude exactly as Chapter 2 measured;
+   magnitude.
 4. heavy-tailed likelihoods resist outliers, and noise can be measured from
    repeats instead of assumed.
 """
@@ -145,7 +145,7 @@ def test_gaussian_negloglike_is_affine_increasing_in_sse():
 def test_least_squares_equals_gaussian_mle_when_well_conditioned():
     # Free only (j_ph, n): a well-identified pair, so the minimum is unique and
     # both optimisers must land on it. (Freeing the sloppy j_0-n ridge instead
-    # would let them stop at different points of a flat valley -- see Chapter 2.)
+    # would let them stop at different points of a flat valley )
     truth = DiodeParams(j_ph=0.036, j_0=1e-12, n=1.2, r_s=0.5, r_sh=800.0)
     v = np.linspace(0, 0.66, 80)
     ds = generate_synthetic(truth, v, kind="light", noise_model=GaussianNoise(2e-5), seed=7)
@@ -163,7 +163,7 @@ def test_least_squares_equals_gaussian_mle_when_well_conditioned():
 
 
 # ---------------------------------------------------------------------------
-# The noise model IS the residual space (reproduces Chapter 2's dark J_0 shift)
+# The noise model IS the residual space 
 # ---------------------------------------------------------------------------
 
 
@@ -175,7 +175,7 @@ def test_absolute_gaussian_mle_matches_linear_residual_fit():
     ml = N.mle_fit(v, j, dark.temp_k, specs, N.AbsoluteGaussian(1e-3), kind="dark")
     assert ls.params.j_0 == pytest.approx(ml.params.j_0, rel=5e-3)
     assert ls.params.n == pytest.approx(ml.params.n, rel=5e-3)
-    # Chapter 2's measured linear-residual value.
+    # measured linear-residual value.
     assert ml.params.j_0 == pytest.approx(2.68e-10, rel=5e-2)
 
 
@@ -187,7 +187,7 @@ def test_lognormal_mle_matches_log_residual_fit():
     ml = N.mle_fit(v, j, dark.temp_k, specs, N.LogNormalLikelihood(0.1), kind="dark")
     assert ls.params.j_0 == pytest.approx(ml.params.j_0, rel=5e-3)
     assert ls.params.n == pytest.approx(ml.params.n, rel=5e-3)
-    # Chapter 2's measured log-residual value -- an order of magnitude below.
+    #  measured log-residual value -- an order of magnitude below.
     assert ml.params.j_0 == pytest.approx(3.72e-11, rel=5e-2)
     assert ml.params.j_0 < 0.2 * 2.68e-10  # decisively different from the linear fit
 

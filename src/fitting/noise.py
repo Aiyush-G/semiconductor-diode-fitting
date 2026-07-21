@@ -21,7 +21,7 @@ Four noise models cover the instruments we meet:
   least squares.
 * :class:`RelativeGaussian` -- standard deviation proportional to the reading
   (a percent-of-value meter, or a multi-decade dark sweep); the small-noise
-  limit of Chapter 3's :class:`~src.models.synthetic.LogNormalNoise`.
+  limit :class:`~src.models.synthetic.LogNormalNoise`.
 * :class:`FloorRelativeGaussian` -- a noise floor added in quadrature to a
   percent-of-value term, the realistic source-meter specification.
 * :class:`StudentTLikelihood` -- heavy tails that survive occasional outliers

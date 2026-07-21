@@ -208,7 +208,7 @@ def main():
 
     fits = [row[0] for row in successful]
     best = best_fit.params
-    print("CHAPTER 2 REPRODUCIBLE RESULTS")
+    
     print(f"repo data: light N={LIGHT_JV_EXAMPLE.voltage.size}, dark N={DARK_JV_EXAMPLE.voltage.size}")
     print(f"multistart: {len(successful)}/{len(all_runs)} converged")
     print(

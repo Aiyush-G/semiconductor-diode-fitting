@@ -143,7 +143,7 @@ fig.tight_layout()
 fig.savefig(OUT / "fig3_example_data.png", dpi=150)
 plt.close(fig)
 
-# --- Numbers quoted in the chapter ------------------------------------------
+# --- Numbers quoted ------------------------------------------
 
 def implicit_residual(v, j, p):
     nvt = p.n * thermal_voltage(p.temp_k)
