@@ -141,3 +141,5 @@ Package the above into a deployable web app.
 | PVsyst one-diode model | https://www.pvsyst.com/help/physical-models-used/pv-module-standard-one-diode-model/index.html?h=diode#as-function-of-the-irradiance |
 
 ---
+
+Agentic models have been used for programatic implementation. 
