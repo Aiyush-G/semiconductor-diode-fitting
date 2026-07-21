@@ -7,7 +7,7 @@ the exact curve, the realised perturbation, the noise specification, and the
 random seed used to generate it.
 
 Only noise *generation* lives here.  Probability densities and likelihoods are
-implemented once in the fitting layer in Chapter 4 so deterministic and
+implemented once in the fitting layer so deterministic and
 Bayesian inference can share them.
 """
 
