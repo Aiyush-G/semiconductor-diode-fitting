@@ -1,13 +1,13 @@
 """Measurement-noise models, likelihoods, and maximum-likelihood fitting.
 
-Chapter 3's :mod:`src.models.synthetic` *generates* noisy J-V data from a
+mod:`src.models.synthetic` *generates* noisy J-V data from a
 declared truth.  This module owns the matching half: the probability densities
 that say how plausible a measurement is, the log-likelihood of a full sweep
 given a parameter vector, and the maximum-likelihood fit that follows from it.
 Both halves are written once and shared, so the deterministic fits here and the
 NumPyro models in Part II never disagree about what "the noise" means.
 
-The central identity taught in Chapter 4 is proved in code below
+
 (:func:`gaussian_negloglike`): with a *constant* Gaussian scale, the negative
 log-likelihood is an affine, strictly increasing function of the sum of squared
 residuals.  Minimising it is therefore identical to ordinary least squares --
@@ -33,8 +33,7 @@ log-normal generator and makes precise the claim, first met in Chapter 2, that
 fitting dark data in log-residual space *is* assuming multiplicative noise.
 
 Densities are plain NumPy and match, term for term, the ``log_prob`` methods of
-``numpyro.distributions.Normal`` and ``numpyro.distributions.StudentT`` so that
-Chapters 7 and 14 reuse the scale construction verbatim.
+``numpyro.distributions.Normal`` and ``numpyro.distributions.StudentT``.
 """
 
 from __future__ import annotations
