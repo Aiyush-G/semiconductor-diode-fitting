@@ -14,6 +14,13 @@ Nothing in the existing ``src/`` tree is modified: this package grows beside
 same model.
 """
 
+from src.inference.diagnostics import (
+    DiagnosticReport,
+    DiagnosticThresholds,
+    VariableDiagnostics,
+    diagnose,
+)
+
 from src.inference.priors import (
     PhysicalBound,
     Provenance,
@@ -29,8 +36,12 @@ from src.inference.priors import (
 )
 
 __all__ = [
+    "DiagnosticReport",
+    "DiagnosticThresholds",
     "PhysicalBound",
     "Provenance",
+    "VariableDiagnostics",
+    "diagnose",
     "delta_v_nr",
     "ere_from_j0",
     "example_physical_bounds",

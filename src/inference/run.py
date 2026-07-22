@@ -64,7 +64,20 @@ def run_nuts(
         num_chains=num_chains,
         progress_bar=False,
     )
-    mcmc.run(random.PRNGKey(seed), **model_kwargs)
+    # Retain the Hamiltonian state needed by the diagnostics layer.  NumPyro's
+    # default stores only ``diverging``; without these fields ArviZ cannot report
+    # tree-depth saturation, energy mixing (E-BFMI), or acceptance behaviour.
+    mcmc.run(
+        random.PRNGKey(seed),
+        extra_fields=(
+            "accept_prob",
+            "adapt_state.step_size",
+            "energy",
+            "num_steps",
+            "potential_energy",
+        ),
+        **model_kwargs,
+    )
     idata = az.from_numpyro(mcmc)
     return mcmc, idata
 
