@@ -1,5 +1,8 @@
 """Accessible Streamlit page for exploring the single-diode model."""
 
+import math
+from pathlib import Path
+
 import streamlit as st
 
 from src.models.data_import import DataImportError, build_dataset
@@ -17,6 +20,8 @@ from src.models.single_diode import (
 )
 from src.models.temperature import TemperatureCoefficients, adjust_params_for_temperature
 from ui.inputs import saturation_current_input, slider_with_number
+from ui.inputs import slider_with_number
+from ui.markdown_sections import parse_sections, render_sections
 from ui.plotting import (
     ideality_factor_figure,
     iv_curve_figure,
@@ -26,6 +31,83 @@ from ui.plotting import (
 
 
 REFERENCE_TEMP_K = 298.15
+IMPLEMENTATION_DETAILS_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "explanations" / "frontend" / "01_single_diode_implementation_details.md"
+)
+# Saturation current density J_0 options in A/cm^2 (PV Lighthouse convention).
+SATURATION_CURRENT_OPTIONS = [10 ** p for p in range(-15, -5)]
+# Bounds for the free-form J_0 number box (span the decade selector, with a
+# little headroom on either side).
+J0_MIN, J0_MAX = 1e-16, 1e-5
+
+
+def saturation_current_input(
+    fit_key: str | None = None,
+    fit_disabled: bool = False,
+) -> float:
+    """Decade select-slider + synced number box for the saturation current J_0.
+
+    J_0 spans many orders of magnitude, so the select-slider gives a quick
+    decade sweep while the number box allows an exact value (e.g. 3e-14). The
+    number box is the source of truth for the model; when it changes, the decade
+    selector snaps to the nearest option so the two stay visually consistent.
+
+    When ``fit_key`` is given, a "Fit" checkbox is rendered as a third column
+    (matching ``slider_with_number``); the caller reads ``st.session_state[fit_key]``.
+    """
+    if "j_0_num" not in st.session_state:
+        st.session_state["j_0_num"] = 1e-13
+        st.session_state["j_0_sel"] = 1e-13
+
+    def _sync_from_select() -> None:
+        st.session_state["j_0_num"] = st.session_state["j_0_sel"]
+
+    def _sync_from_number() -> None:
+        value = st.session_state["j_0_num"]
+        # Snap the decade selector to the option closest in log10 space.
+        st.session_state["j_0_sel"] = min(
+            SATURATION_CURRENT_OPTIONS,
+            key=lambda option: abs(math.log10(option) - math.log10(value)),
+        )
+
+    help_text = (
+        "Reverse saturation current density in A/cm². This controls the diode "
+        "recombination current and strongly affects open-circuit voltage."
+    )
+    if fit_key is not None:
+        col_select, col_number, col_fit = st.columns([3, 1, 1], gap="small")
+    else:
+        col_select, col_number = st.columns([3, 1], gap="small")
+    with col_select:
+        st.select_slider(
+            "Saturation current density J₀ (A/cm²)",
+            options=SATURATION_CURRENT_OPTIONS,
+            format_func=lambda x: f"{x:.0e}",
+            key="j_0_sel",
+            help=help_text,
+            on_change=_sync_from_select,
+        )
+    with col_number:
+        st.number_input(
+            "Saturation current density J₀ (A/cm²)",
+            min_value=J0_MIN,
+            max_value=J0_MAX,
+            step=1e-14,
+            format="%.2e",
+            key="j_0_num",
+            on_change=_sync_from_number,
+            label_visibility="collapsed",
+        )
+    if fit_key is not None:
+        if fit_key not in st.session_state:
+            st.session_state[fit_key] = True
+        with col_fit:
+            st.checkbox("Fit", key=fit_key, disabled=fit_disabled)
+
+    return st.session_state["j_0_num"]
+
+
 
 
 @st.dialog("Custom Data")
@@ -38,7 +120,7 @@ def data_load_dialog() -> None:
     """
     st.caption(
         "Load measured J-V data to overlay on the graph and fit. Light data can "
-        "fit J_L, J_0, n, R_s, R_sh; dark data fits J_0, n, R_s, R_sh (no photocurrent)."
+        "fit Jₚₕ, J₀, n, Rₛ, Rₛₕ; dark data fits J₀, n, Rₛ, Rₛₕ (no photocurrent)."
     )
 
     example_choice = st.selectbox(
@@ -109,16 +191,16 @@ def fit_results_dialog() -> None:
     status = "converged" if fit_result.success else "did not converge"
     st.caption(
         f"Fitted {', '.join(fit_result.free_names)} to '{imported_dataset.label}' "
-        f"({fit_result.n_points} points, {fit_result.residual_space} residuals) — {status}."
+        f"({fit_result.n_points} points, {fit_result.residual_space} residuals): {status}."
     )
 
     p = fit_result.params
     pcol1, pcol2, pcol3, pcol4, pcol5 = st.columns(5)
-    pcol1.metric("J_L (mA/cm²)", f"{p.j_ph * 1e3:.3f}")
-    pcol2.metric("J_0 (A/cm²)", f"{p.j_0:.3e}")
+    pcol1.metric("Jₚₕ (mA/cm²)", f"{p.j_ph * 1e3:.3f}")
+    pcol2.metric("J₀ (A/cm²)", f"{p.j_0:.3e}")
     pcol3.metric("n", f"{p.n:.3f}")
-    pcol4.metric("R_s (Ω·cm²)", f"{p.r_s:.3f}")
-    pcol5.metric("R_sh (Ω·cm²)", f"{p.r_sh:.4g}")
+    pcol4.metric("Rₛ (Ω·cm²)", f"{p.r_s:.3f}")
+    pcol5.metric("Rₛₕ (Ω·cm²)", f"{p.r_sh:.4g}")
 
     mcol1, mcol2, mcol3, mcol4 = st.columns(4)
     mcol1.metric("RMSE (mA/cm²)", f"{fit_result.rmse * 1e3:.4f}")
@@ -138,10 +220,25 @@ def fit_results_dialog() -> None:
         width="stretch",
     )
     st.caption(
-        "Residual = fitted − measured current density at each point. A "
+        "Residual = fitted - measured current density at each point. A "
         "structureless scatter about zero indicates a good fit; systematic "
         "curvature points to a model/parameter mismatch."
     )
+
+
+@st.dialog("Details of Implementation", width="large")
+def implementation_details_dialog() -> None:
+    """Modal rendering the implementation notes as collapsible sections.
+
+    Sections are parsed from the markdown headings, so new headings appear in the
+    modal without a change here.
+    """
+    preamble, sections = parse_sections(
+        IMPLEMENTATION_DETAILS_PATH.read_text(encoding="utf-8")
+    )
+    if preamble:
+        st.markdown(preamble)
+    render_sections(sections)
 
 
 # Page metadata and opening copy are kept concise so keyboard and screen-reader
@@ -189,10 +286,21 @@ st.markdown(
 )
 
 st.title("Single Diode Model")
+if st.button("Details of Implementation", key="open_implementation_details"):
+    implementation_details_dialog()
 
-st.markdown(
-    "Explore how equivalent-circuit parameters change a solar-cell JV "
-    "(current-density) curve under light and optional dark conditions."
+# Introduction
+with st.expander("Introduction", expanded=False):
+    st.markdown(
+    "### Current implementation\n"
+    "- **Adjust circuit parameters:** photocurrent, saturation current, ideality "
+    "factor, series resistance, and shunt resistance at the 25 °C reference condition.\n"
+    "- **Change temperature:** apply a PVsyst implemented temperature correction to "
+    "photocurrent and saturation current while keeping ideality factor and resistances fixed.\n"
+    "- **Fit measured data:** load example or custom light or dark J-V data and "
+    "fit any subset of parameters using least squares.\n"
+    "- **Inspect diagnostics:** view linear and semi-log J-V curves, maximum power "
+    "point, local ideality factor, residuals, and measured-versus-fitted overlays."
 )
 
 # Keep inputs and outputs in separate columns so the interaction flow is
@@ -207,6 +315,10 @@ with col_controls:
 
     # --- Custom fitting: load data (modal) + fit controls ------------------
     with st.expander("Custom Fitting", expanded=True):
+
+        st.markdown(
+    "Upload dataset and adjust 'fit' of reference parameters before fitting the dataset."
+        )
         # Place Load, Fit and Clear on a single row for compact controls.
         col_load_btn, col_fit_btn, col_clear_btn = st.columns([1, 1, 1])
 
@@ -217,7 +329,7 @@ with col_controls:
         dataset = st.session_state.get("imported_dataset")
         if dataset is not None:
             st.caption(
-                f"Loaded: {dataset.label} — {dataset.kind}, {dataset.voltage.size} points"
+                f"Loaded: {dataset.label}:  {dataset.kind}, {dataset.voltage.size} points"
             )
 
         # Fit / Clear sit side by side on the same row and are only clickable once data is loaded.
@@ -257,9 +369,11 @@ with col_controls:
 
         # J_ph is a light-only parameter, so its Fit checkbox is disabled for dark data.
         dark_loaded = dataset is not None and dataset.kind == "dark"
+        # Fit checkboxes are only meaningful once a dataset is loaded to fit against.
+        no_data = dataset is None
 
         j_ph_ma = slider_with_number(
-            "Photo-current density J_ph (mA/cm²)",
+            "Photo-current density Jₚₕ (mA/cm²)",
             min_value=0.0,
             max_value=50.0,
             value=40.0,
@@ -271,9 +385,9 @@ with col_controls:
                 "the short-circuit current density of the light JV curve."
             ),
             fit_key="fit_free_j_ph",
-            fit_disabled=dark_loaded,
+            fit_disabled=no_data or dark_loaded,
         )
-        j_0 = saturation_current_input(fit_key="fit_free_j_0")
+        j_0 = saturation_current_input(fit_key="fit_free_j_0", fit_disabled=no_data)
         n = slider_with_number(
             "Ideality factor n",
             min_value=1.0,
@@ -287,9 +401,10 @@ with col_controls:
                 "more ideal diode; larger values indicate stronger recombination."
             ),
             fit_key="fit_free_n",
+            fit_disabled=no_data,
         )
         r_s = slider_with_number(
-            "Series resistance R_s (Ω·cm²)",
+            "Series resistance Rₛ (Ω·cm²)",
             min_value=0.0,
             max_value=5.0,
             value=0.5,
@@ -301,9 +416,10 @@ with col_controls:
                 "material, and wiring. Larger values reduce current at high voltage."
             ),
             fit_key="fit_free_r_s",
+            fit_disabled=no_data,
         )
         r_sh = slider_with_number(
-            "Shunt resistance R_sh (Ω·cm²)",
+            "Shunt resistance Rₛₕ (Ω·cm²)",
             min_value=100.0,
             max_value=100000.0,
             value=1000.0,
@@ -315,6 +431,7 @@ with col_controls:
                 "generally mean less leakage near short circuit."
             ),
             fit_key="fit_free_r_sh",
+            fit_disabled=no_data,
         )
 
     with st.expander("Operating conditions", expanded=True):
@@ -330,6 +447,59 @@ with col_controls:
                 "saturation current before the IV curve is calculated."
             ),
         )
+
+        # Convert the visible controls into model parameters before applying
+        # the temperature adjustment. The reference values remain anchored to
+        # 25 deg C. J_ph is entered in mA/cm² but the model works internally
+        # in A/cm². Computed here (rather than after col_controls) so the
+        # range slider below can be bounded by the actual auto-extended sweep.
+        ref_params = DiodeParams(
+            j_ph=j_ph_ma * 1e-3,
+            j_0=j_0,
+            n=n,
+            r_s=r_s,
+            r_sh=r_sh,
+            temp_k=REFERENCE_TEMP_K,
+        )
+        target_temp_k = temp_c + 273.15
+
+        if abs(target_temp_k - REFERENCE_TEMP_K) > 0.01:
+            params = adjust_params_for_temperature(
+                ref_params,
+                target_temp_k,
+                TemperatureCoefficients(),
+            )
+        else:
+            params = ref_params
+
+        voltage, current = iv_curve(params)
+        metrics = key_metrics(voltage, current)
+        v_max_bound = float(voltage[-1])
+
+        range_key = "v_range"
+        if range_key not in st.session_state:
+            st.session_state[range_key] = (0.0, v_max_bound)
+        else:
+            lo, hi = st.session_state[range_key]
+            lo = min(lo, v_max_bound)
+            hi = min(hi, v_max_bound)
+            if hi <= lo:
+                hi = v_max_bound
+            st.session_state[range_key] = (lo, hi)
+
+        v_start, v_end = st.slider(
+            "Voltage range for plots (V)",
+            min_value=0.0,
+            max_value=v_max_bound,
+            step=0.01,
+            key=range_key,
+            help=(
+                "Restricts the voltage window shown in the Results graphs "
+                "below. Metrics (Jsc, Voc, Pmax, FF, Efficiency) always "
+                "reflect the full curve regardless of this range."
+            ),
+        )
+
         show_dark = st.checkbox(
             "Overlay dark IV curve",
             value=False,
@@ -375,33 +545,6 @@ with col_controls:
         )
         fit_results_dialog()
 
-# Convert the visible controls into model parameters before applying the
-# temperature adjustment. The reference values remain anchored to 25 deg C.
-# J_ph is entered in mA/cm² but the model works internally in A/cm².
-ref_params = DiodeParams(
-    j_ph=j_ph_ma * 1e-3,
-    j_0=j_0,
-    n=n,
-    r_s=r_s,
-    r_sh=r_sh,
-    temp_k=REFERENCE_TEMP_K,
-)
-target_temp_k = temp_c + 273.15
-
-if abs(target_temp_k - REFERENCE_TEMP_K) > 0.01:
-    params = adjust_params_for_temperature(
-        ref_params,
-        target_temp_k,
-        TemperatureCoefficients(),
-    )
-else:
-    params = ref_params
-
-# Model evaluation is kept outside the rendering blocks so UI layout changes do
-# not affect the physics path.
-voltage, current = iv_curve(params)
-metrics = key_metrics(voltage, current)
-
 with col_results:
     st.header("Results")
 
@@ -427,13 +570,28 @@ with col_results:
     fitted_voltage = imported_dataset.voltage if fit_result is not None else None
     fitted_current = fit_result.model_current if fit_result is not None else None
 
+    # Crop only the modelled light/dark traces to the selected voltage range;
+    # metrics above stay computed from the full curve. The x-axis range set
+    # below keeps the window tight even where other traces (MPP marker,
+    # measured/fitted overlays) fall outside it.
+    def _crop(v, i):
+        mask = (v >= v_start) & (v <= v_end)
+        return v[mask], i[mask]
+
+    voltage_plot, current_plot = _crop(voltage, current)
+    if dark_curve is not None:
+        v_dark_plot, i_dark_plot = _crop(v_dark, i_dark)
+    else:
+        v_dark_plot, i_dark_plot = None, None
+
     fig = iv_curve_figure(
-        voltage, current, metrics=metrics, title="JV Curve",
-        dark_voltage=v_dark, dark_current=i_dark,
+        voltage_plot, current_plot, metrics=metrics, title="JV Curve",
+        dark_voltage=v_dark_plot, dark_current=i_dark_plot,
         measured_voltage=measured_voltage, measured_current=measured_current,
         measured_label=measured_label,
         fitted_voltage=fitted_voltage, fitted_current=fitted_current,
     )
+    fig.update_xaxes(range=[v_start, v_end])
     st.plotly_chart(fig, width="stretch")
     if dark_curve is not None:
         st.caption(
@@ -449,33 +607,49 @@ with col_results:
 
     # Diagnostic pair: semilog JV and the local ideality factor, overlaying the
     # light and (when enabled) dark curves. Click a legend entry to hide a series.
-    jv_series = [("Light", voltage, current)]
-    m_series = [
-        (
-            "Light",
-            voltage,
-            local_ideality_factor(voltage, current, params.temp_k, j_ph=params.j_ph),
-        )
-    ]
+    # m(V) is derived from the full (uncropped) arrays first — np.gradient needs
+    # uncropped neighbors near the edges for an accurate derivative — then both
+    # the voltage and derived series are cropped together for display.
+    m_light_full = local_ideality_factor(voltage, current, params.temp_k, j_ph=params.j_ph)
+    jv_series = [("Light", *_crop(voltage, current))]
+    m_series = [("Light", *_crop(voltage, m_light_full))]
     if dark_curve is not None:
-        jv_series.append(("Dark", v_dark, i_dark))
+        jv_series.append(("Dark", v_dark_plot, i_dark_plot))
         # Dark current already encodes zero photocurrent, so j_ph stays 0.
-        m_series.append(
-            ("Dark", v_dark, local_ideality_factor(v_dark, i_dark, params.temp_k))
+        m_dark_full = local_ideality_factor(v_dark, i_dark, params.temp_k)
+        m_series.append(("Dark", *_crop(v_dark, m_dark_full)))
+
+    # Local ideality factor for the imported measurements themselves, using
+    # the same light/dark j_ph convention as the modelled curves above.
+    m_measured = None
+    if imported_dataset is not None and measured_voltage.size >= 2:
+        measured_j_ph = params.j_ph if imported_dataset.kind == "light" else 0.0
+        m_measured = local_ideality_factor(
+            measured_voltage, measured_current, params.temp_k, j_ph=measured_j_ph
         )
 
-    st.plotly_chart(log_jv_figure(jv_series), width="stretch")
+    log_fig = log_jv_figure(
+        jv_series,
+        measured_voltage=measured_voltage, measured_current=measured_current,
+        measured_label=measured_label,
+    )
+    log_fig.update_xaxes(range=[v_start, v_end])
+    st.plotly_chart(log_fig, width="stretch")
     st.caption(
         "Semilog JV curve: |current density| on a log axis reveals the "
         "exponential diode region across several decades. Click a legend entry "
         "to toggle the light or dark series."
     )
 
-    st.plotly_chart(ideality_factor_figure(m_series), width="stretch")
+    m_fig = ideality_factor_figure(
+        m_series,
+        measured_voltage=measured_voltage, measured_m=m_measured,
+        measured_label=measured_label,
+    )
+    m_fig.update_xaxes(range=[v_start, v_end])
+    st.plotly_chart(m_fig, width="stretch")
     st.caption(
-        "Local ideality factor m(V) = (1/Vt)·dV/d(ln|J|). It sits near the diode "
-        "ideality factor n in the exponential region and departs where series/"
-        "shunt resistance dominate; gaps appear near the J→0 crossing (Voc)."
+        ""
     )
 
     # --- Fit summary and residuals (shown in a modal) ----------------------

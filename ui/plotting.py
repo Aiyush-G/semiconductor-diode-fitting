@@ -133,15 +133,23 @@ def _series_color(label: str, index: int) -> str:
 def log_jv_figure(
     series: list[tuple[str, np.ndarray, np.ndarray]],
     title: str = "Log JV Curve",
+    measured_voltage: np.ndarray | None = None,
+    measured_current: np.ndarray | None = None,
+    measured_label: str = "Measured data",
 ) -> go.Figure:
     """Build a semilog JV figure: |J| (mA/cm^2) on a log y-axis vs voltage.
 
     Overlays each named series (e.g. "Light" and "Dark") as its own trace;
-    click a legend entry to toggle that series off.
+    click a legend entry to toggle that series off. Imported measurements can
+    also be overlaid as green markers, matching ``iv_curve_figure``.
 
     Args:
         series: list of (label, voltage [V], current_density [A/cm^2]) tuples
         title: figure title
+        measured_voltage: optional imported-measurement voltage points (V)
+        measured_current: optional imported-measurement current density
+            (A/cm^2), drawn as markers
+        measured_label: legend label for the measured markers
     """
     fig = go.Figure()
     for index, (label, voltage, current) in enumerate(series):
@@ -150,6 +158,13 @@ def log_jv_figure(
         fig.add_trace(go.Scatter(
             x=voltage, y=current_ma, mode="lines", name=label,
             line=dict(color=_series_color(label, index), width=2),
+        ))
+
+    if measured_current is not None:
+        fig.add_trace(go.Scatter(
+            x=measured_voltage, y=np.abs(measured_current) * 1e3, mode="markers",
+            name=measured_label,
+            marker=dict(color="#2ca02c", size=6, symbol="circle-open"),
         ))
 
     fig.update_layout(
@@ -166,22 +181,38 @@ def log_jv_figure(
 def ideality_factor_figure(
     series: list[tuple[str, np.ndarray, np.ndarray]],
     title: str = "Local Ideality Factor m(V)",
+    measured_voltage: np.ndarray | None = None,
+    measured_m: np.ndarray | None = None,
+    measured_label: str = "Measured data",
 ) -> go.Figure:
     """Build a local-ideality-factor figure: m vs voltage.
 
     The m arrays are computed upstream by the model
     (``single_diode.local_ideality_factor``); this builder only draws them, so
-    NaN entries (near the J -> 0 crossing) render as gaps.
+    NaN entries (near the J -> 0 crossing) render as gaps. Imported
+    measurements can also be overlaid as green markers, matching
+    ``iv_curve_figure``.
 
     Args:
         series: list of (label, voltage [V], m [dimensionless]) tuples
         title: figure title
+        measured_voltage: optional imported-measurement voltage points (V)
+        measured_m: optional local ideality factor computed from the imported
+            measurements, drawn as markers
+        measured_label: legend label for the measured markers
     """
     fig = go.Figure()
     for index, (label, voltage, m) in enumerate(series):
         fig.add_trace(go.Scatter(
             x=voltage, y=m, mode="lines", name=label,
             line=dict(color=_series_color(label, index), width=2),
+        ))
+
+    if measured_m is not None:
+        fig.add_trace(go.Scatter(
+            x=measured_voltage, y=measured_m, mode="markers",
+            name=measured_label,
+            marker=dict(color="#2ca02c", size=6, symbol="circle-open"),
         ))
 
     fig.update_layout(

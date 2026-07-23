@@ -23,7 +23,7 @@ Use pvlib under the hood (https://pvlib-python.readthedocs.io/en/stable/index.ht
 
 ---
 
-## Phase B - Fitting functionality
+## Phase B - Fitting functionality (overlap between single and multi-diode setup!)
 
 **Goal:** fit the single-diode model to real data such that fitted parameters remain physically meaningful.
 
