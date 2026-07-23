@@ -1,4 +1,4 @@
-"""Differentiable single-diode forward model and the minimal NumPyro model.
+"""Differentiable single-diode forward model and NumPyro models.
 
 The deterministic forward model (:func:`src.models.single_diode.solve_current`)
 uses SciPy's ``lambertw`` and forms the Lambert-W argument ``a * exp(b)``
@@ -21,11 +21,14 @@ This module supplies the JAX twin the Bayesian layer needs:
   ``j_0`` and ``n`` free, drawn from the physics priors (the
   reciprocity floor keeps ``j_0`` above ``j_0,rad`` by construction), the other
   three parameters fixed at truth, and a Gaussian measurement likelihood at a
-  known scale. 
+  known scale.
+* :func:`full_joint_model` — all five parameters free, with one illuminated
+  sweep and one dark sweep sharing the same diode parameters.  The light arm
+  has additive Gaussian noise and the multi-decade dark arm has multiplicative
+  log-normal noise.
 
-Nothing in the existing ``src/`` tree is modified; this grows beside
-``priors.py`` and reuses its ``PhysicalBound.to_prior`` machinery so the
-deterministic and Bayesian arms constrain the same parameters identically.
+The models reuse ``PhysicalBound.to_prior`` so the deterministic and Bayesian
+arms derive their constraints from the same provenance-bearing objects.
 
 Float64 is strongly recommended for the reciprocity ``j_0`` (which spans
 decades); :func:`src.inference.run.run_nuts` calls ``numpyro.enable_x64()``
@@ -38,6 +41,7 @@ import jax.numpy as jnp
 import numpyro
 import numpyro.distributions as dist
 
+from src.fitting.noise import CURRENT_FLOOR
 from src.inference.priors import PhysicalBound
 from src.models.single_diode import DiodeParams, K_BOLTZMANN, Q_CHARGE
 
@@ -174,3 +178,89 @@ def two_parameter_model(
         fixed["r_s"], fixed["r_sh"], temp_k,
     )
     numpyro.sample("obs", dist.Normal(mu, sigma), obs=jnp.asarray(current))
+
+
+def joint_log_likelihood_jax(
+    light_voltage: jnp.ndarray,
+    light_current: jnp.ndarray,
+    dark_voltage: jnp.ndarray,
+    dark_current: jnp.ndarray,
+    *,
+    j_ph: float,
+    j_0: float,
+    n: float,
+    r_s: float,
+    r_sh: float,
+    sigma_light: float,
+    sigma_dark_ln: float,
+    temp_k: float = 298.15,
+) -> jnp.ndarray:
+    """Joint light-plus-dark log-likelihood for one shared diode.
+
+    The light sweep uses the additive Gaussian likelihood and the dark sweep
+    uses the multiplicative log-normal likelihood from ``src.fitting.noise``.
+    The ``-log|J_dark|`` change-of-variables term is included, so this function
+    matches the NumPy likelihood term for term rather than only up to a constant.
+    """
+    light_mu = solve_current_jax(
+        jnp.asarray(light_voltage), j_ph, j_0, n, r_s, r_sh, temp_k
+    )
+    dark_mu = solve_current_jax(
+        jnp.asarray(dark_voltage), 0.0, j_0, n, r_s, r_sh, temp_k
+    )
+    light_y = jnp.asarray(light_current)
+    dark_y = jnp.maximum(jnp.abs(jnp.asarray(dark_current)), CURRENT_FLOOR)
+    dark_median = jnp.maximum(jnp.abs(dark_mu), CURRENT_FLOOR)
+
+    light_lp = jnp.sum(dist.Normal(light_mu, sigma_light).log_prob(light_y))
+    dark_lp = jnp.sum(
+        dist.Normal(jnp.log(dark_median), sigma_dark_ln).log_prob(jnp.log(dark_y))
+        - jnp.log(dark_y)
+    )
+    return light_lp + dark_lp
+
+
+def full_joint_model(
+    light_voltage: jnp.ndarray,
+    light_current: jnp.ndarray,
+    dark_voltage: jnp.ndarray,
+    dark_current: jnp.ndarray,
+    *,
+    bounds: dict[str, PhysicalBound],
+    sigma_light: float,
+    sigma_dark_ln: float,
+    temp_k: float = 298.15,
+) -> None:
+    """Five-parameter single-diode posterior from shared light and dark data.
+
+    All five natural parameters are sampled from the provenance-bearing physics
+    priors.  The dark forward structurally sets ``j_ph=0`` while sharing
+    ``j_0``, ``n``, ``r_s`` and ``r_sh`` with the illuminated sweep.  This is a
+    single device and a single posterior, not two fits reconciled afterwards.
+    """
+    j_ph = numpyro.sample("j_ph", bounds["j_ph"].to_prior())
+    j_0 = numpyro.sample("j_0", bounds["j_0"].to_prior())
+    n = numpyro.sample("n", bounds["n"].to_prior())
+    r_s = numpyro.sample("r_s", bounds["r_s"].to_prior())
+    r_sh = numpyro.sample("r_sh", bounds["r_sh"].to_prior())
+
+    light_mu = solve_current_jax(
+        jnp.asarray(light_voltage), j_ph, j_0, n, r_s, r_sh, temp_k
+    )
+    dark_mu = solve_current_jax(
+        jnp.asarray(dark_voltage), 0.0, j_0, n, r_s, r_sh, temp_k
+    )
+    dark_y = jnp.maximum(jnp.abs(jnp.asarray(dark_current)), CURRENT_FLOOR)
+    dark_median = jnp.maximum(jnp.abs(dark_mu), CURRENT_FLOOR)
+
+    numpyro.sample(
+        "obs_light",
+        dist.Normal(light_mu, sigma_light),
+        obs=jnp.asarray(light_current),
+    )
+    numpyro.sample(
+        "obs_dark_log",
+        dist.Normal(jnp.log(dark_median), sigma_dark_ln),
+        obs=jnp.log(dark_y),
+    )
+    numpyro.factor("dark_log_jacobian", -jnp.sum(jnp.log(dark_y)))

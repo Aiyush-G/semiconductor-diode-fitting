@@ -21,6 +21,19 @@ from src.inference.diagnostics import (
     diagnose,
 )
 
+from src.inference.comparison import (
+    ComparisonFlag,
+    DualReport,
+    JointMLEResult,
+    JointProfileResult,
+    compare_profile_posterior,
+    joint_mle,
+    joint_negative_log_likelihood,
+    joint_profile_parameter,
+)
+
+from src.inference.models_numpyro import full_joint_model, joint_log_likelihood_jax
+
 from src.inference.priors import (
     PhysicalBound,
     Provenance,
@@ -38,14 +51,24 @@ from src.inference.priors import (
 __all__ = [
     "DiagnosticReport",
     "DiagnosticThresholds",
+    "ComparisonFlag",
+    "DualReport",
+    "JointMLEResult",
+    "JointProfileResult",
     "PhysicalBound",
     "Provenance",
     "VariableDiagnostics",
     "diagnose",
+    "compare_profile_posterior",
     "delta_v_nr",
     "ere_from_j0",
     "example_physical_bounds",
     "j0_from_ere",
+    "joint_log_likelihood_jax",
+    "joint_mle",
+    "joint_negative_log_likelihood",
+    "joint_profile_parameter",
+    "full_joint_model",
     "prior_predictive_jv",
     "prior_weighted_profile",
     "sample_prior_parameters",
