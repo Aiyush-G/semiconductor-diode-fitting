@@ -1,7 +1,5 @@
 """Accessible Streamlit page for exploring the single-diode model."""
 
-import math
-
 import streamlit as st
 
 from src.models.data_import import DataImportError, build_dataset
@@ -18,7 +16,7 @@ from src.models.single_diode import (
     local_ideality_factor,
 )
 from src.models.temperature import TemperatureCoefficients, adjust_params_for_temperature
-from ui.inputs import slider_with_number
+from ui.inputs import saturation_current_input, slider_with_number
 from ui.plotting import (
     ideality_factor_figure,
     iv_curve_figure,
@@ -28,79 +26,6 @@ from ui.plotting import (
 
 
 REFERENCE_TEMP_K = 298.15
-# Saturation current density J_0 options in A/cm^2 (PV Lighthouse convention).
-SATURATION_CURRENT_OPTIONS = [10 ** p for p in range(-15, -5)]
-# Bounds for the free-form J_0 number box (span the decade selector, with a
-# little headroom on either side).
-J0_MIN, J0_MAX = 1e-16, 1e-5
-
-
-def saturation_current_input(
-    fit_key: str | None = None,
-    fit_disabled: bool = False,
-) -> float:
-    """Decade select-slider + synced number box for the saturation current J_0.
-
-    J_0 spans many orders of magnitude, so the select-slider gives a quick
-    decade sweep while the number box allows an exact value (e.g. 3e-14). The
-    number box is the source of truth for the model; when it changes, the decade
-    selector snaps to the nearest option so the two stay visually consistent.
-
-    When ``fit_key`` is given, a "Fit" checkbox is rendered as a third column
-    (matching ``slider_with_number``); the caller reads ``st.session_state[fit_key]``.
-    """
-    if "j_0_num" not in st.session_state:
-        st.session_state["j_0_num"] = 1e-13
-        st.session_state["j_0_sel"] = 1e-13
-
-    def _sync_from_select() -> None:
-        st.session_state["j_0_num"] = st.session_state["j_0_sel"]
-
-    def _sync_from_number() -> None:
-        value = st.session_state["j_0_num"]
-        # Snap the decade selector to the option closest in log10 space.
-        st.session_state["j_0_sel"] = min(
-            SATURATION_CURRENT_OPTIONS,
-            key=lambda option: abs(math.log10(option) - math.log10(value)),
-        )
-
-    help_text = (
-        "Reverse saturation current density in A/cm². This controls the diode "
-        "recombination current and strongly affects open-circuit voltage."
-    )
-    if fit_key is not None:
-        col_select, col_number, col_fit = st.columns([3, 1, 1], gap="small")
-    else:
-        col_select, col_number = st.columns([3, 1], gap="small")
-    with col_select:
-        st.select_slider(
-            "Saturation current density J_0 (A/cm²)",
-            options=SATURATION_CURRENT_OPTIONS,
-            format_func=lambda x: f"{x:.0e}",
-            key="j_0_sel",
-            help=help_text,
-            on_change=_sync_from_select,
-        )
-    with col_number:
-        st.number_input(
-            "Saturation current density J_0 (A/cm²)",
-            min_value=J0_MIN,
-            max_value=J0_MAX,
-            step=1e-14,
-            format="%.2e",
-            key="j_0_num",
-            on_change=_sync_from_number,
-            label_visibility="collapsed",
-        )
-    if fit_key is not None:
-        if fit_key not in st.session_state:
-            st.session_state[fit_key] = True
-        with col_fit:
-            st.checkbox("Fit", key=fit_key, disabled=fit_disabled)
-
-    return st.session_state["j_0_num"]
-
-
 
 
 @st.dialog("Custom Data")

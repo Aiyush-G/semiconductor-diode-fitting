@@ -8,6 +8,8 @@ st.markdown(
     Solar cell IV curve modelling and fitting — TacOSPV internship project.
 
     Use the sidebar to navigate:
-    - **Single Diode** — Phase A: IV/JV curve plotting
+    - **Single Diode** — Phases A-B: IV/JV curve plotting and fitting
+    - **Tandem** — Phase C: 2-terminal tandem (two sub-cells in series,
+      current-matched), 10-parameter modelling and fitting
     """
 )

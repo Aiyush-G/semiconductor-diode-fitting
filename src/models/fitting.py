@@ -30,12 +30,15 @@ deceptively close to 1).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Callable, Literal
 
 import numpy as np
 from scipy.optimize import least_squares
 
 from src.models.single_diode import DiodeParams, solve_current
+
+if TYPE_CHECKING:
+    from src.models.tandem import TandemParams
 
 PARAM_NAMES = ("j_ph", "j_0", "n", "r_s", "r_sh")
 
@@ -97,7 +100,9 @@ class FitResult:
     residual space was used.
 
     Attributes:
-        params: fitted ``DiodeParams`` (fixed entries unchanged).
+        params: fitted parameter container (fixed entries unchanged) —
+            ``DiodeParams`` for a single-diode fit, ``TandemParams`` for a
+            tandem fit.
         free_names: names of the parameters that were fitted, in order.
         success: optimizer convergence flag (True for the all-fixed evaluation).
         message: optimizer status message.
@@ -112,7 +117,7 @@ class FitResult:
         residual_space: the residual space actually used ("linear" or "log").
     """
 
-    params: DiodeParams
+    params: DiodeParams | TandemParams
     free_names: tuple[str, ...]
     success: bool
     message: str
@@ -191,19 +196,27 @@ def _inverse(theta: float, log: bool) -> float:
     return float(10.0 ** theta) if log else float(theta)
 
 
-def pack(specs: dict[str, ParamSpec]) -> tuple[np.ndarray, np.ndarray, np.ndarray, tuple[str, ...]]:
+def pack(
+    specs: dict[str, ParamSpec],
+    param_order: tuple[str, ...] = PARAM_NAMES,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, tuple[str, ...]]:
     """Assemble the free-parameter start vector and bounds in fit space.
+
+    Args:
+        specs: ``{name: ParamSpec}`` map.
+        param_order: canonical parameter ordering; defaults to the single-diode
+            ``PARAM_NAMES`` (the tandem fit passes its 10-name ordering).
 
     Returns:
         (theta0, lower, upper, free_names) where the arrays cover only free
-        parameters, in ``PARAM_NAMES`` order, and log-space parameters have their
-        value and bounds transformed with log10.
+        parameters, in ``param_order`` order, and log-space parameters have
+        their value and bounds transformed with log10.
     """
     theta0: list[float] = []
     lower: list[float] = []
     upper: list[float] = []
     free_names: list[str] = []
-    for name in PARAM_NAMES:
+    for name in param_order:
         spec = specs.get(name)
         if spec is None or not spec.free:
             continue
@@ -220,17 +233,28 @@ def pack(specs: dict[str, ParamSpec]) -> tuple[np.ndarray, np.ndarray, np.ndarra
     return (theta0_arr, lower_arr, upper_arr, tuple(free_names))
 
 
-def unpack(theta: np.ndarray, specs: dict[str, ParamSpec], temp_k: float) -> DiodeParams:
-    """Rebuild ``DiodeParams`` from a fit-space vector plus the fixed specs.
+def unpack_values(
+    theta: np.ndarray,
+    specs: dict[str, ParamSpec],
+    param_order: tuple[str, ...],
+) -> dict[str, float]:
+    """Rebuild the full ``{name: natural-unit value}`` map from a fit vector.
 
-    Fixed parameters are taken verbatim from their spec value; free parameters are
-    read from ``theta`` (in ``PARAM_NAMES`` order among the free set) and
-    inverse-transformed.
+    Fixed parameters are taken verbatim from their spec value; free parameters
+    are read from ``theta`` (in ``param_order`` order among the free set) and
+    inverse-transformed. Model-agnostic — the caller decides which parameter
+    container to build from the values.
     """
-    values = {name: specs[name].value for name in PARAM_NAMES}
-    free_names = [n for n in PARAM_NAMES if specs.get(n) is not None and specs[n].free]
+    values = {name: specs[name].value for name in param_order}
+    free_names = [n for n in param_order if specs.get(n) is not None and specs[n].free]
     for name, t in zip(free_names, np.atleast_1d(theta)):
         values[name] = _inverse(float(t), specs[name].log)
+    return values
+
+
+def unpack(theta: np.ndarray, specs: dict[str, ParamSpec], temp_k: float) -> DiodeParams:
+    """Rebuild ``DiodeParams`` from a fit-space vector plus the fixed specs."""
+    values = unpack_values(theta, specs, PARAM_NAMES)
     return DiodeParams(
         j_ph=values["j_ph"], j_0=values["j_0"], n=values["n"],
         r_s=values["r_s"], r_sh=values["r_sh"], temp_k=temp_k,
@@ -258,18 +282,25 @@ def _log_residual(model_current: np.ndarray, measured: np.ndarray) -> np.ndarray
     return np.log10(model_mag) - np.log10(meas_mag)
 
 
-def _make_residual(voltage, measured, specs, temp_k, space, penalty):
+def _make_residual(voltage, measured, specs, temp_k, space, penalty, predict=None):
     """Build the residual closure passed to ``least_squares``.
 
     Traps any forward-model failure or non-finite output and substitutes a large
     finite penalty, always returning a vector of length ``len(voltage)``.
+
+    ``predict`` maps a fit-space vector theta to the model current at
+    ``voltage``; when omitted it defaults to the single-diode forward model
+    (``solve_current`` on ``unpack``-ed specs). The tandem fit supplies its own.
     """
     n_points = voltage.shape[0]
     residual_fn = _log_residual if space == "log" else _linear_residual
+    if predict is None:
+        def predict(theta: np.ndarray) -> np.ndarray:
+            return solve_current(voltage, unpack(theta, specs, temp_k))
 
     def residuals(theta: np.ndarray) -> np.ndarray:
         try:
-            model_current = solve_current(voltage, unpack(theta, specs, temp_k))
+            model_current = predict(theta)
         except Exception:
             return np.full(n_points, penalty)
         r = residual_fn(model_current, measured)
@@ -323,22 +354,50 @@ def fit_diode(
     """
     voltage = np.asarray(voltage, dtype=float)
     current = np.asarray(current, dtype=float)
-    n_points = voltage.shape[0]
     space = resolve_residual_space(residual_space, kind)
 
-    theta0, lower, upper, free_names = pack(specs)
+    return _fit_generic(
+        voltage, current, specs,
+        space=space, loss=loss, penalty=penalty, max_nfev=max_nfev,
+        param_order=PARAM_NAMES,
+        unpack_params=lambda theta: unpack(theta, specs, temp_k),
+        predict=lambda theta: solve_current(voltage, unpack(theta, specs, temp_k)),
+    )
+
+
+def _fit_generic(
+    voltage: np.ndarray,
+    current: np.ndarray,
+    specs: dict[str, ParamSpec],
+    *,
+    space: str,
+    loss: str,
+    penalty: float,
+    max_nfev: int | None,
+    param_order: tuple[str, ...],
+    unpack_params: Callable[[np.ndarray], "DiodeParams | TandemParams"],
+    predict: Callable[[np.ndarray], np.ndarray],
+) -> FitResult:
+    """Model-agnostic least-squares engine shared by the single-diode and
+    tandem fits.
+
+    ``unpack_params`` rebuilds the parameter container from a fit-space vector;
+    ``predict`` maps a fit-space vector to the model current at ``voltage``.
+    Everything else (packing, bounds, penalties, metrics) is common.
+    """
+    theta0, lower, upper, free_names = pack(specs, param_order)
 
     # All-fixed case: nothing to optimise, just evaluate and report.
     if theta0.size == 0:
-        params = unpack(np.empty(0), specs, temp_k)
-        model_current = solve_current(voltage, params)
+        params = unpack_params(np.empty(0))
+        model_current = predict(np.empty(0))
         return _build_result(
             params, free_names, True, "No free parameters; evaluated fixed model.",
             voltage, current, model_current, space, cost=0.0,
         )
 
     result = least_squares(
-        _make_residual(voltage, current, specs, temp_k, space, penalty),
+        _make_residual(voltage, current, None, None, space, penalty, predict=predict),
         theta0,
         bounds=(lower, upper),
         method="trf",
@@ -347,13 +406,13 @@ def fit_diode(
         max_nfev=max_nfev,
     )
 
-    params = unpack(result.x, specs, temp_k)
+    params = unpack_params(result.x)
     # Recompute the model current cleanly (residual closure may have penalised).
     # Guard against a pathological final point so a fit never crashes the caller.
     success = bool(result.success)
     message = str(result.message)
     try:
-        model_current = solve_current(voltage, params)
+        model_current = predict(result.x)
         if not np.all(np.isfinite(model_current)):
             raise ValueError("non-finite model current")
     except Exception as exc:  # noqa: BLE001 - report, don't crash
