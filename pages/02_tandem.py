@@ -213,9 +213,6 @@ st.title("Tandem Model (2-Terminal)")
 
 st.markdown(
     "Two single-diode sub-cells in series share one current density "
-    "(current matching), so the terminal voltage is the sum of the sub-cell "
-    "voltages: V(J) = V_top(J) + V_bottom(J). Explore how the 10 sub-cell "
-    "parameters shape the tandem JV curve."
 )
 
 # Keep inputs and outputs in separate columns so the interaction flow is
