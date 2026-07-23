@@ -19,6 +19,7 @@ from src.models.single_diode import (
     local_ideality_factor,
 )
 from src.models.temperature import TemperatureCoefficients, adjust_params_for_temperature
+from ui.inputs import saturation_current_input, slider_with_number
 from ui.inputs import slider_with_number
 from ui.markdown_sections import parse_sections, render_sections
 from ui.plotting import (

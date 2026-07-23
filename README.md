@@ -107,6 +107,8 @@ Extend the model and fitting pipeline to tandem cells (two diodes in series, ~10
 - Extended fitting with the larger parameter space
 - **Milestone:** fit a tandem IV curve with physically interpretable parameters
 
+> The 2-terminal tandem page (current-matched series stack, 10-parameter fitting) is documented in [`explanations/models/03_tandem_model.md`](./explanations/models/03_tandem_model.md).
+
 ### Phase D - Circuit solving (SPICE)
 Move to a proper nonlinear circuit solver for speed and scalability.
 - PySpice integration (via Google Colab, given the macOS porting issue with TandEx)

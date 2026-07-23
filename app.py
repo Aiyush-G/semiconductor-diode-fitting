@@ -9,5 +9,8 @@ st.markdown(
 
     Use the sidebar to navigate:
     - **Single Diode** - IV/JV curve plotting
+    - **Tandem** — Phase C: 2-terminal tandem (two sub-cells in series,
+      current-matched), 10-parameter modelling and fitting
+    
     """
 )

@@ -43,9 +43,9 @@ Use pvlib under the hood (https://pvlib-python.readthedocs.io/en/stable/index.ht
 **Goal:** extend everything above to tandem cells (two single-diode circuits in series, 10 parameters).
 
 **Tasks:**
-- [ ] Implement tandem circuit model, integrating Mikael's method for tandem description
-- [ ] Extend the fitting pipeline to the larger parameter space
-- [ ] Extend bounding/penalty logic to the tandem parameter set
+- [x] Implement tandem circuit model (2-terminal current-matched series stack via exact Lambert-W inverse; see `explanations/models/03_tandem_model.md`) — cross-check against Mikael's method when its form is known
+- [x] Extend the fitting pipeline to the larger parameter space (10 prefixed params, per-param free/fixed, shared `fitting.py` engine)
+- [ ] Extend bounding/penalty logic to the tandem parameter set (bounds done; penalty cost function still open, same as Phase B)
 - [ ] Validate against a known tandem reference curve if available
 - [ ] Investigate interface.materials group's existing work on tandem conductivity impact (see Teams) for cross-reference
 

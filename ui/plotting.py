@@ -24,6 +24,7 @@ def iv_curve_figure(
     measured_label: str = "Measured data",
     fitted_voltage: np.ndarray | None = None,
     fitted_current: np.ndarray | None = None,
+    extra_series: list[tuple[str, np.ndarray, np.ndarray]] | None = None,
 ) -> go.Figure:
     """Build a Plotly figure for a JV curve, with an optional power-density
     overlay on a secondary axis and key metrics marked (Jsc, Voc, MPP).
@@ -52,6 +53,9 @@ def iv_curve_figure(
         fitted_voltage: optional fitted-curve voltage points (V)
         fitted_current: optional fitted current density (A/cm^2), drawn as a
             solid red line on the primary axis
+        extra_series: optional list of (label, voltage, current) auxiliary
+            curves (e.g. tandem sub-cell JV curves), drawn as thin dashed
+            lines on the primary axis
     """
     has_dark = dark_current is not None
     has_measured = measured_current is not None
@@ -90,6 +94,18 @@ def iv_curve_figure(
             name="Fitted curve (mA/cm²)",
             line=dict(color="#d62728", width=2),
         ))
+
+    if extra_series:
+        aux_palette = ["#9467bd", "#8c564b", "#e377c2", "#7f7f7f"]
+        for index, (label, aux_voltage, aux_current) in enumerate(extra_series):
+            fig.add_trace(go.Scatter(
+                x=aux_voltage, y=aux_current * 1e3, mode="lines",
+                name=f"{label} (mA/cm²)",
+                line=dict(
+                    color=aux_palette[index % len(aux_palette)],
+                    width=1.5, dash="dash",
+                ),
+            ))
 
     if metrics:
         fig.add_trace(go.Scatter(
